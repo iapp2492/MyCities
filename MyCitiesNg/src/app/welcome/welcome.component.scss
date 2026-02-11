@@ -1,0 +1,183 @@
+.welcome-shell {
+    padding: 24px;
+    max-width: 600px;
+    margin: 0 auto;
+    text-align: center;
+}
+
+.main-container {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1px;
+    align-items: center;
+    margin: 10px;
+}
+
+.brand {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 16px;
+    align-items: center;
+}
+
+.logo {
+    width: 100%;
+    max-width: 240px;
+    height: auto;
+    border-radius: 14px;
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18);
+}
+
+.brandText h1 {
+    margin: 0 0 10px 0;
+    font-size: 34px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+}
+
+.tagline {
+    margin: 0;
+    font-size: 15px;
+    opacity: 0.85;
+}
+
+.second {
+    text-align: right;
+    margin-right: 10px;
+    margin-top: 10px;
+    font-weight: 550;
+    font-size: 12px;
+}
+
+.twcLink {
+    display: inline-block;
+    font-weight: 600;
+    text-decoration: none;
+    margin-top: 4px;
+}
+
+.ctaCard {
+    border-radius: 16px;
+}
+
+.ctaButtons {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+    margin: 8px 0 12px 0;
+}
+
+.hint {
+    margin: 0;
+    font-size: 13px;
+    opacity: 0.85;
+}
+
+.contentGrid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    max-width: 580px;
+    margin: 5px auto;
+}
+
+.fullWidth {
+    grid-column: 1 / -1;
+    padding: 10px;
+}
+
+.bullets {
+    margin: 0;
+    padding-left: 18px;
+}
+
+.pillRow {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin: 10px 0 8px 0;
+}
+
+.pill {
+    padding: 6px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(0, 0, 0, 0.18);
+    font-size: 12px;
+    font-weight: 600;
+    opacity: 0.9;
+}
+
+.small {
+    font-size: 13px;
+    opacity: 0.85;
+}
+
+.mapChooser {
+    margin-top: 54px;
+    margin-bottom: 30px;
+    display: flex;
+    flex-direction: column; // stack header + buttons
+    align-items: center;
+}
+
+.mapChooserHeader {
+    .title {
+        font-size: 18px;
+        font-weight: 600;
+        margin: 0;
+    }
+
+    .subtitle {
+        margin-top: 2px;
+        font-size: 13px;
+        font-weight: 600;
+    }
+}
+
+.mapChooserButtons {
+    margin-top: 14px;
+    display: flex;
+    gap: 56px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.chooserBtn {
+    border-radius: 4px !important;
+    padding-top: 10px !important;
+    padding-bottom: 10px !important;
+}
+
+/* Optional hover */
+:host ::ng-deep ktr-button.chooserBtn button.mat-mdc-raised-button:hover {
+    filter: brightness(0.97);
+}
+
+.logo-container {
+    display: flex;
+    justify-content: flex-end;
+    max-width: 580px; // SAME as contentGrid
+    margin: 12px auto 0 auto;
+}
+
+.background-paragraph {
+    text-align: left;
+}
+
+@media (max-width: 900px) {
+    .hero {
+        grid-template-columns: 1fr;
+    }
+
+    .brand {
+        grid-template-columns: 140px 1fr;
+    }
+
+    .contentGrid {
+        grid-template-columns: 1fr;
+    }
+
+    .fullWidth {
+        grid-column: auto;
+    }
+}

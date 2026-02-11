@@ -1,0 +1,36 @@
+:host {
+    display: block;
+    height: 100vh; // or 100% if your parent controls height
+}
+
+.page {
+    height: 100%;
+    display: grid;
+    grid-template-rows: auto 1fr;
+}
+
+.topbar {
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 16px;
+    padding: 10px 14px;
+    border-bottom: 1px solid #ddd;
+    text-align: left;
+}
+
+.page-title {
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.map-shell {
+    //   height: 100%;
+    min-height: 0;
+}
+
+.map {
+    height: 100%;
+    width: 100%;
+}

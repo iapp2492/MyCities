@@ -1,0 +1,29 @@
+<div class="page">
+
+    <header class="topbar">
+
+        <div class="page-title">My Cities - Mapbox Map Engine</div>
+       
+        <!-- Shared dropdowns for decades, stay durations and basemaps -->
+        <app-map-filters-bar
+            [decades$]="decades$"
+            [stayDurations$]="stayDurations$"
+            [basemaps]="basemaps"
+            [selectedDecade]="selectedDecade"
+            [selectedStayDuration]="selectedStayDuration"
+            [selectedBasemap]="selectedBasemap"
+            (decadeChange)="onDecadeChange($event)"
+            (stayDurationChange)="onStayChange($event)"
+            (basemapChange)="onBasemapChange($event)">
+        </app-map-filters-bar>
+
+    </header>
+
+    <div class="map-shell">
+        <div id="mapboxMap" class="map"></div>
+    </div>
+
+</div>
+
+
+

@@ -4,6 +4,19 @@ MyCities is a full-stack geographic visualization application that displays citi
 
 The application combines an Angular frontend with a C# ASP.NET Core WebApi backend to provide interactive filtering and map-based exploration.
 
+
+## Screenshots
+
+### Google Maps engine
+![Google Maps engine](docs/screenshots/google-maps-engine.png)
+
+### Leaflet engine
+![Leaflet engine](docs/screenshots/leaflet-engine.png)
+
+### Mapbox engine
+![Mapbox engine](docs/screenshots/mapbox-engine.png)
+
+
 ## Tech Stack
 
 - Angular 19

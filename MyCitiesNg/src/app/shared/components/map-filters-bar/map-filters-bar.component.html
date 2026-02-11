@@ -1,0 +1,39 @@
+<!-- Filters bar: decade, stay duration, basemap -->
+<div class="filters">
+
+    <!-- Decades (multi-decades are possible) -->
+    <select (change)="onDecadeSelectChange($event.target)" [value]="selectedDecade ?? ''">
+        <option value="">Decades</option>
+        @if (decades$ | async; as decades) 
+        {
+            @for (d of decades; track d) 
+            {
+                <option [value]="d">{{ d }}</option>
+            }
+        }
+    </select>
+
+    <!-- Stay durations (singles only) -->
+    <select (change)="onStayDurationSelectChange($event.target)" [value]="selectedStayDuration ?? ''">
+        <option value="">Stay Durations</option>
+        @if (stayDurations$ | async; as stays) 
+        {
+            @for (d of stays; track d) 
+            {
+                <option [value]="d">{{ d }}</option>
+            }
+        }
+    </select>
+
+    <!-- Basemaps (hidden if none provided) -->
+     @if (basemaps.length > 0)
+     {
+         <select (change)="onBasemapSelectChange($event.target)" [value]="selectedBasemap ?? basemaps[0].value">
+            @for (bm of basemaps; track bm.value) 
+            {
+                <option [value]="bm.value">{{ bm.label }}</option>
+            }
+        </select>
+     }
+    
+</div>

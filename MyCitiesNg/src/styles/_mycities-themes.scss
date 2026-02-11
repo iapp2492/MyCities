@@ -1,0 +1,22 @@
+// 🎨 Karyotutor color palette
+$ktr-blue: #4797e5;
+$ktr-disabled: #b3c4e0;
+$ktr-light-bg: #f3f3f3;
+$ktr-text-light: #f3f3f3;
+$ktr-text-dark: #333;
+$ktr-home-page-gray: #f1f1f1;
+$ktr-yellow-highlighter: #fff8dc;
+$ktr-blue-highlighter:  #e3f2fd;
+
+// 🧩 Optional mixins
+@mixin use-ktr-blue {
+  background-color: $ktr-blue !important;
+  color: white !important;
+}
+
+@mixin use-ktr-disabled {
+  background-color: $ktr-disabled !important;
+  color: $ktr-text-light !important;
+  cursor: not-allowed !important;
+  box-shadow: none !important;
+}

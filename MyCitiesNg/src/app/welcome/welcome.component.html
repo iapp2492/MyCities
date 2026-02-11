@@ -1,0 +1,63 @@
+<div class="welcome-shell">
+
+    <div class="main-container brandText">
+
+        <h1>My Cities</h1>
+        <p class="tagline">
+            A personal map of the cities that I didn’t just visit — where I actually lived.
+        </p>
+        <p class="tagline">
+            Spanning six decades and multiple continents.
+        </p>
+
+    </div>
+
+    <section class="mapChooser">
+
+        <div class="mapChooserHeader">
+            <div class="title">Choose a map view</div>
+            <div class="subtitle">Same cities — different mapping engines.</div>
+        </div>
+
+        <div class="mapChooserButtons">
+            <app-ktr-button [buttonClass]="'chooserBtn'" (click)="goToLeaflet()">Leaflet</app-ktr-button>
+            <app-ktr-button [buttonClass]="'chooserBtn'" (click)="goToMapbox()">Mapbox</app-ktr-button>
+            <app-ktr-button [buttonClass]="'chooserBtn'" (click)="goToGoogle()">Google Maps</app-ktr-button>
+        </div>
+
+    </section>
+
+    <p class="tagline second">
+        Built with Angular and modern mapping technologies.
+    </p>
+
+    <div class="contentGrid">
+
+        <mat-card appearance="outlined" class="fullWidth">
+            <mat-card-title>About this map</mat-card-title>
+            <mat-card-content>
+
+                <p class="background-paragraph">
+                    All the cities that appear on this map are places where I lived continuously for at least one month.
+                    The values shown for stay duration (visible in the popup), however, are an aggregate of all the time
+                    spent at that location.
+                    Of course, everything here is approximate.
+                </p>
+
+            </mat-card-content>
+        </mat-card>
+        
+    </div>
+
+    <div class="logo-container">
+
+        <a class="twcLink" href="https://www.travelswithcal.com" target="_blank" rel="noopener noreferrer">
+            <img class="logo" src="assets/travelswithcal-logo.jpg" alt="Travels with Cal" />
+            <div>
+                Visit TravelsWithCal.com
+            </div>
+        </a>
+
+    </div>
+
+</div>

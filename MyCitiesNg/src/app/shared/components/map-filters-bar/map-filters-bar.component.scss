@@ -1,0 +1,18 @@
+.filters {    
+  display: flex;                 // arrange the three selects in a single row
+  justify-content: flex-start;
+  align-items: center;
+  gap: 10px;                     
+  margin-left: 20px !important;     // required to override Angular Material's default margin on mat-form-field
+  padding: 5px;
+  background-color: rgb(60, 173, 248);   // tiny sliver of background color added to draw attention the filter area
+  border-radius: 5px;
+}
+
+.filters select {
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid #cfcfcf;
+  background: white;
+}

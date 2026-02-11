@@ -1,0 +1,1 @@
+export type BasemapMode = 'standard' | 'humanitarian' | 'opentopo' | 'esristreet' | 'esriworldimagery' | 'wikimedia';
