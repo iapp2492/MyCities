@@ -1,0 +1,73 @@
+# Ignore Visual Studio related files
+.vs/
+*.vsidx
+
+# Ignore compiled binaries
+bin/
+obj/
+
+# Ignore user-specific settings
+*.user
+*.suo
+
+# JetBrains Rider / ReSharper / Code Analysis
+_ReSharper.Caches/
+*.DotSettings.user
+*.dotCover
+
+# .NET Core / .NET 5+ build artifacts
+.vscode/
+obj/
+bin/
+*.db
+
+# Keep a safe template for reference (with no real secrets)
+!appsettings.Template.json
+
+# ❌ Ignore caches and node_modules
+MyCitiesNg/.angular/cache/
+MyCitiesNg/node_modules/
+MyCitiesNg/npm-debug.log*
+MyCitiesNg/yarn-error.log
+
+# ❌ Ignore build output folders
+MyCitiesNg/dist/
+MyCitiesNg/out-tsc/
+MyCitiesNg/coverage/
+
+# Angular environment files with secrets
+MyCitiesNg/src/environments/environment*.ts
+
+#Runtime Data (Excel Version)
+*.xlsx
+
+# Logs
+logs/
+*.log
+
+# SQL Server files
+*.mdf
+*.ldf
+
+# --- EF Core (data-first: don't track migrations) ---
+**/Migrations/**
+
+# If you scaffold into temp folders, ignore those too:
+**/TempModels/**
+**/TempData/**
+
+# --- .NET test results & coverage ---
+TestResults/
+**/TestResults/
+
+# VS / coverlet / other coverage formats
+*.trx
+*.coverage
+*.coveragexml
+*.coverageinfo
+*.cobertura.xml
+*.opencover.xml
+coverage*.xml
+
+# VSCodeCounter output
+.VSCodeCounter/
