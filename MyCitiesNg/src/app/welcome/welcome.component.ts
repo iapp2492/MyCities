@@ -29,5 +29,4 @@ export class WelcomeComponent
     {
         this.router.navigate(['/map/google']);
     }
-
 }

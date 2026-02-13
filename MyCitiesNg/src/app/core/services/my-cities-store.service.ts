@@ -90,7 +90,7 @@ export class MyCitiesStoreService
         this._errorSubject.next(null);
 
         this._loadOnce$ = this.api.getAllCities().pipe(
-            tap(cities => 
+            map(cities => 
             {
                 const valid = cities.filter(c =>
                     this.isValidCoordinate(c.lat) &&
@@ -105,6 +105,8 @@ export class MyCitiesStoreService
                 
                 this._citiesSubject.next(valid);
                 this.buildFilterLists(valid);
+
+                return valid;
             }),
             catchError(err => 
             {

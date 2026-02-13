@@ -123,4 +123,32 @@ describe('MapFiltersBarComponent', () =>
         return select;
     }
 
+    it('onDecadeSelectChange returns without emitting when target is null', () =>
+    {
+        const emitSpy = spyOn(component.decadeChange, 'emit');
+
+        component.onDecadeSelectChange(null);
+
+        expect(emitSpy).not.toHaveBeenCalled();
+    });
+
+    it('onStayDurationSelectChange returns without emitting when target is null', () =>
+    {
+        const emitSpy = spyOn(component.stayDurationChange, 'emit');
+
+        component.onStayDurationSelectChange(null);
+
+        expect(emitSpy).not.toHaveBeenCalled();
+    });
+
+    it('onBasemapSelectChange returns without emitting when target is null', () =>
+    {
+        const emitSpy = spyOn(component.basemapChange, 'emit');
+
+        component.onBasemapSelectChange(null);
+
+        expect(emitSpy).not.toHaveBeenCalled();
+    });
+
+
 });

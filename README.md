@@ -4,6 +4,9 @@ MyCities is a full-stack geographic visualization application that displays citi
 
 The application combines an Angular frontend with a C# ASP.NET Core WebApi backend to provide interactive filtering and map-based exploration.
 
+## Purpose
+
+This project was built to demonstrate modern full-stack engineering practices including API design, data access patterns, and client-side visualization.
 
 ## Screenshots
 
@@ -34,6 +37,12 @@ The application combines an Angular frontend with a C# ASP.NET Core WebApi backe
 - Filter cities by stay duration
 - Clean layered backend architecture
 
-## Purpose
+## Design Decisions
 
-This project was built to demonstrate modern full-stack engineering practices including API design, data access patterns, and client-side visualization.
+- Multiple map engines were implemented to evaluate tradeoffs between ecosystem maturity, customization, and performance.
+- The dataset is intentionally small (~60 cities), allowing the architecture to prioritize clarity and maintainability over premature optimization.
+- Standalone Angular components were used to align with modern Angular direction.
+
+### Unit Test Code Coverage (100%)
+
+![Unit test code coverage showing 100% across all metrics](docs/screenshots/code-coverage.png)

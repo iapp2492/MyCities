@@ -1,12 +1,12 @@
 import { AfterViewInit, Component, DestroyRef, inject, OnDestroy } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { filter, tap } from 'rxjs';
-import mapboxgl from 'mapbox-gl';
 import '../../core/config/mapbox-init'; 
 import { MyCitiesStoreService} from '../../core/services/my-cities-store.service';
 import { MyCityDto } from '../../../models/myCityDto'; 
 import { MapFiltersBarComponent, BasemapOption } from '../../shared/components/map-filters-bar/map-filters-bar.component';
 import type { BasemapMode } from '../../../models/basemapMode';
+import { MAPBOX_FACTORY } from '../../core/map/mapbox.factory';
 
 @Component({
   selector: 'app-mapbox-map',
@@ -19,6 +19,7 @@ export class MapboxMapComponent implements AfterViewInit, OnDestroy
 {
     private readonly citiesStore = inject(MyCitiesStoreService);
     private readonly destroyRef = inject(DestroyRef);
+    private readonly mapbox = inject(MAPBOX_FACTORY);
 
     private map?: mapboxgl.Map;
     private markers: mapboxgl.Marker[] = [];
@@ -142,7 +143,9 @@ export class MapboxMapComponent implements AfterViewInit, OnDestroy
             return;
         }   
 
-        this.map = new mapboxgl.Map(
+        
+
+        this.map =  this.mapbox.createMap(
         {
             container: 'mapboxMap',
             style: this.basemapStyles[this.selectedBasemap ?? 'standard'],
@@ -155,7 +158,7 @@ export class MapboxMapComponent implements AfterViewInit, OnDestroy
         requestAnimationFrame(() => this.map?.resize());
 
         // Optional nice controls
-        this.map.addControl(new mapboxgl.NavigationControl(), 'top-right');
+        this.map.addControl(this.mapbox.createNavigationControl(), 'top-right');
 
         // When the map is ready, do an initial render if data already exists
         this.map.on('load', () => 
@@ -185,7 +188,7 @@ export class MapboxMapComponent implements AfterViewInit, OnDestroy
             return;
         }
 
-        const bounds = new mapboxgl.LngLatBounds();
+        const bounds =  this.mapbox.createLngLatBounds();
 
         for (const city of cities) 
         {
@@ -216,15 +219,23 @@ export class MapboxMapComponent implements AfterViewInit, OnDestroy
                 </div>
             `;
 
-            const popup = new mapboxgl.Popup({ offset: 18 }).setHTML(popupHtml);
+            const popup = this.mapbox.createPopup(
+            {
+                offset: [0, 18]
+            })
+            .setHTML(popupHtml);            
 
-            const marker = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
-                .setLngLat([city.lon, city.lat])
-                .setPopup(popup)
-                .addTo(this.map);
+           const marker = this.mapbox.createMarker(
+            {
+                element: el,
+                anchor: 'bottom'
+            })
+            .setLngLat([lon, lat])
+            .setPopup(popup)
+            .addTo(this.map);
 
             this.markers.push(marker);
-            bounds.extend([city.lon, city.lat]);
+            bounds.extend([lon, lat]);
         }
 
         // Fit all visible markers

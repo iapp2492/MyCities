@@ -1,7 +1,7 @@
 import { AfterViewInit, Component, DestroyRef, inject, OnDestroy } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { filter, tap } from 'rxjs';
-import { setOptions, importLibrary } from '@googlemaps/js-api-loader';
+import { GoogleMapsLoaderService } from '../../core/services/google-maps-loader.service';
 import { MyCitiesStoreService} from '../../core/services/my-cities-store.service';
 import { MyCityDto } from '../../../models/myCityDto'; 
 import { MapFiltersBarComponent, BasemapOption } from '../../shared/components/map-filters-bar/map-filters-bar.component';
@@ -21,6 +21,7 @@ export class GoogleMapComponent  implements AfterViewInit, OnDestroy
 
     private readonly citiesStore = inject(MyCitiesStoreService);
     private readonly destroyRef = inject(DestroyRef);
+    private readonly mapsLoader = inject(GoogleMapsLoaderService);
 
     private map?: google.maps.Map;
     private markers: google.maps.marker.AdvancedMarkerElement[] = [];
@@ -62,12 +63,11 @@ export class GoogleMapComponent  implements AfterViewInit, OnDestroy
         this.citiesStore.setBasemapMode(value as BasemapMode);
 
         if (!this.map) 
-{
-return;
-}
+        {
+            return;
+        }
         this.map.setMapTypeId(value as google.maps.MapTypeId);
     }
-
 
     ngAfterViewInit(): void 
     {
@@ -75,16 +75,15 @@ return;
         this.citiesStore.ensureLoaded()
         .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe({
-           next: async () => 
-{
- await this.initMapOnce(); 
-},
-            error: async () => 
-{
- await this.initMapOnce(); 
-} // still init; you'll just have no markers
+            next: async () => 
+            {
+            await this.initMapOnce(); 
+            },
+                        error: async () => 
+            {
+            await this.initMapOnce(); 
+            } // still init; you'll just have no markers
         });
-
 
         // 2) Render markers based on filteredCities$ (filters affect map automatically)
         this.citiesStore.filteredCities$
@@ -97,9 +96,9 @@ return;
         {
             this.latestCities = cities; // store latest for use if map isn’t ready yet
             if (!this.map) 
-{
-return;
-}
+            {
+                return;
+            }
             this.renderMarkers(cities);
         });
     }
@@ -108,18 +107,14 @@ return;
     {
         const mapEl = document.getElementById('googleMap') as HTMLElement | null;
         if (!mapEl || this.map) 
-{
-return;
-}
-
-       setOptions(
         {
-            key: environment.googleMapsApiKey,
-            v: 'weekly',
-        });
+            return;
+        }  
 
-        const { Map } = await importLibrary('maps') as google.maps.MapsLibrary;
-        await importLibrary('marker');
+        this.mapsLoader.setOptions({ key: environment.googleMapsApiKey, v: 'weekly' });
+
+        const { Map } = await this.mapsLoader.importLibrary('maps') as google.maps.MapsLibrary;
+        await this.mapsLoader.importLibrary('marker');
 
         this.map = new Map(mapEl, 
         {
@@ -141,15 +136,15 @@ return;
     {
         console.log('Rendering markers for cities in the renderMarkers method:', cities);
         if (!this.map) 
-{
-return;
-}
+        {
+            return;
+        }
 
         this.clearMarkers();
         if (cities.length === 0) 
-{
-return;
-}
+        {
+            return;
+        }
 
         const bounds = new google.maps.LatLngBounds();
 
@@ -199,14 +194,14 @@ return;
     private clearMarkers(): void 
     {
         for (const m of this.markers) 
-{
-m.map = null;
-}
+        {
+            m.map = null;
+        }
         this.markers = [];
     }
 
     private createMarkerElement(): HTMLElement 
-{
+    {
         const el = document.createElement('div');
         el.className = 'mycity-marker';
 
@@ -226,7 +221,7 @@ m.map = null;
     }
 
     private escapeHtml(value: unknown): string 
-{
+    {
         const s = String(value ?? '');
         return s
         .replaceAll('&', '&amp;')
@@ -237,7 +232,7 @@ m.map = null;
     }
 
     ngOnDestroy(): void 
-{
+    {
         this.clearMarkers();
         this.map  = undefined;
     }

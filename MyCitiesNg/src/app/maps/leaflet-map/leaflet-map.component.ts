@@ -7,7 +7,6 @@ import { CommonModule } from '@angular/common';
 import type { BasemapMode } from '../../../models/basemapMode';
 import { MapFiltersBarComponent, BasemapOption } from '../../shared/components/map-filters-bar/map-filters-bar.component';
 
-
 @Component({
     selector: 'app-leaflet-map',
     standalone: true,
@@ -24,7 +23,7 @@ export class LeafletMapComponent implements AfterViewInit, OnDestroy
     private tileLayer?: L.TileLayer;
 
     private readonly MARKER_OPACITY = 0.70;
-    private readonly TOOLTIP_MIN_ZOOM = 6;   // <-- tweak this
+    private readonly TOOLTIP_MIN_ZOOM = 6;  // show tooltips at this zoom level or higher
     private markersWithTooltips: L.Marker[] = [];
 
     stayDurations$ = this.citiesStore.stayDurations$;
@@ -124,9 +123,9 @@ export class LeafletMapComponent implements AfterViewInit, OnDestroy
 
         const bounds = L.latLngBounds([]);
 
+        let skipped = 0;
         for (const city of cities) 
         { 
-            let skipped = 0;
             const lat = Number(city.lat);
             const lon = Number(city.lon);
 
