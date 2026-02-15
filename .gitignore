@@ -24,6 +24,10 @@ bin/
 # Keep a safe template for reference (with no real secrets)
 !appsettings.Template.json
 
+# Exclude appsettings
+appsettings.*.json
+
+
 # ❌ Ignore caches and node_modules
 MyCitiesNg/.angular/cache/
 MyCitiesNg/node_modules/

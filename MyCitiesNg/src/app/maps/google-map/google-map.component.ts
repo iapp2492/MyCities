@@ -106,10 +106,11 @@ export class GoogleMapComponent  implements AfterViewInit, OnDestroy
     private async initMapOnce(): Promise<void> 
     {
         const mapEl = document.getElementById('googleMap') as HTMLElement | null;
-        if (!mapEl || this.map) 
+
+        if (!mapEl || !mapEl.isConnected || this.map)
         {
             return;
-        }  
+        }
 
         this.mapsLoader.setOptions({ key: environment.googleMapsApiKey, v: 'weekly' });
 
@@ -179,17 +180,31 @@ export class GoogleMapComponent  implements AfterViewInit, OnDestroy
 
         this.map.fitBounds(bounds, 50); // 50px padding
     }
-    private buildPopupHtml(city: MyCityDto): string 
+
+    private buildPopupHtml(city: MyCityDto): string
     {
+        const notes = city.notes?.trim();
+
         return `
-            <div style="font-size: 13px; line-height: 1.25;">
-            <div style="font-weight: 700; margin-bottom: 6px;">${this.escapeHtml(city.city)}</div>
+        <div style="font-size: 13px; line-height: 1.35; max-width: 320px;">
+            <div style="font-weight: 700; margin-bottom: 6px;">
+                ${this.escapeHtml(city.city)}
+            </div>
+
             <div><b>Country:</b> ${this.escapeHtml(city.country)}</div>
             ${city.stayDuration ? `<div><b>Stay:</b> ${this.escapeHtml(city.stayDuration)}</div>` : ''}
             ${city.decades ? `<div><b>Decades:</b> ${this.escapeHtml(city.decades)}</div>` : ''}
-            </div>
+
+            ${notes ? `
+                <div style="margin-top: 8px;">
+                    <div style="font-weight: 600; margin-bottom: 4px;">Notes:</div>
+                    <div style="white-space: pre-wrap; text-align: left;">${this.escapeHtml(notes)}</div>
+                </div>
+            ` : ''}
+        </div>
         `;
     }
+
 
     private clearMarkers(): void 
     {

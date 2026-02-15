@@ -187,11 +187,16 @@ describe('GoogleMapComponent', () =>
     let store: TestCitiesStoreMock;
     let g: GoogleMocks;
     let mapsLoader: GoogleMapsLoaderMock;
+    let host: HTMLDivElement;
+
 
     beforeEach(async () =>
     {
         // Ensure the map element exists before initMapOnce() is called
-        document.body.innerHTML = `<div id="googleMap" style="width: 400px; height: 300px;"></div>`;
+        host = document.createElement('div');
+        host.id = 'test-host';
+        host.innerHTML = `<div id="googleMap" style="width: 400px; height: 300px;"></div>`;
+        document.body.appendChild(host);
 
         g = installGoogleMapsMocks();
         store = new TestCitiesStoreMock();
@@ -211,6 +216,12 @@ describe('GoogleMapComponent', () =>
         component = fixture.componentInstance;
     });
 
+    afterEach(() =>
+    {
+        host?.remove();
+        fixture?.destroy();
+    });
+
     it('should create', () =>
     {
         expect(component).toBeTruthy();
@@ -226,7 +237,19 @@ describe('GoogleMapComponent', () =>
 
     it('initMapOnce should do nothing when map element is missing', async () =>
     {
-        document.body.innerHTML = ''; // remove #googleMap
+        const original = document.getElementById.bind(document);
+
+        spyOn(document, 'getElementById').and.callFake((id: string) =>
+        {
+            if (id === 'googleMap')
+            {
+                return null;
+            }
+
+            return original(id);
+        });
+        mapsLoader.setOptions.calls.reset();
+        mapsLoader.importLibrary.calls.reset();
 
         await (component as unknown as { initMapOnce(): Promise<void> }).initMapOnce();
 
@@ -592,5 +615,47 @@ describe('GoogleMapComponent', () =>
         expect(escapeHtml(null)).toBe('');
         expect(escapeHtml(undefined)).toBe('');
     });
+
+    it('buildPopupHtml should omit Notes section when notes is null/empty/whitespace', () =>
+    {
+        const city: MyCityDto =
+        {
+            id: 1,
+            city: 'Test City',
+            country: 'Test Country',
+            region: '',
+            lat: 0,
+            lon: 0,
+            notes: '   ',         // whitespace should trim to empty
+            stayDuration: '',
+            decades: ''
+        };
+
+        const html = (component as unknown as { buildPopupHtml(c: MyCityDto): string }).buildPopupHtml(city);
+
+        expect(html).not.toContain('Notes:');
+    });
+
+    it('buildPopupHtml should include Notes section when notes is present and escape HTML', () =>
+    {
+        const city: MyCityDto =
+        {
+            id: 1,
+            city: 'Test City',
+            country: 'Test Country',
+            region: '',
+            lat: 0,
+            lon: 0,
+            notes: '<b>hello</b>',
+            stayDuration: '',
+            decades: ''
+        };
+
+        const html = (component as unknown as { buildPopupHtml(c: MyCityDto): string }).buildPopupHtml(city);
+
+        expect(html).toContain('Notes:');
+        expect(html).toContain('&lt;b&gt;hello&lt;/b&gt;'); // proves escaping
+    });
+
 
 });

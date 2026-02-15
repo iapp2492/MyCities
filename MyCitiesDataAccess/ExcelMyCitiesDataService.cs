@@ -8,7 +8,6 @@ namespace MyCitiesDataAccess
 {
     public class ExcelMyCitiesDataService : IMyCitiesDataService
     {
-
         #region Fields
 
 

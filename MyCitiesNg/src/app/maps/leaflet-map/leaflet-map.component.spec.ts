@@ -705,7 +705,7 @@ describe('LeafletMapComponent', () =>
             decades: overrides.decades ?? '',
         };
     }
-    
+
     it('escapeHtml treats null/undefined as empty string (covers ?? "" branch)', () =>
     {
         const record = component as unknown as Record<string, unknown>;
@@ -716,6 +716,5 @@ describe('LeafletMapComponent', () =>
         expect(escapeHtml(null)).toBe('');
         expect(escapeHtml(undefined)).toBe('');
     });
-
 
 });

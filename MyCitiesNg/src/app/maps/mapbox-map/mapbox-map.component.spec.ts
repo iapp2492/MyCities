@@ -7,12 +7,13 @@ import type { BasemapMode } from '../../../models/basemapMode';
 import { MAPBOX_FACTORY } from '../../core/map/mapbox.factory';
 import type { MapboxFactory } from '../../core/map/mapbox.factory';
 
+
 type LoadHandler = () => void;
 
 interface MapboxMapLike
 {
     on(event: 'load', handler: LoadHandler): void;
-    once(event: 'style.load', handler: LoadHandler): void;
+    once(event: 'load' | 'style.load', handler: LoadHandler): void;
 
     setStyle(style: string): void;
     fitBounds(bounds: unknown, options?: unknown): void;
@@ -21,6 +22,18 @@ interface MapboxMapLike
     resize(): void;
     remove(): void;
 }
+
+type MapboxMapLikeSpy = Omit<MapboxMapLike, 'on' | 'once' | 'setStyle' | 'fitBounds' | 'addControl' | 'resize' | 'remove'> &
+{
+    on: jasmine.Spy;
+    once: jasmine.Spy;
+    setStyle: jasmine.Spy;
+    fitBounds: jasmine.Spy;
+    addControl: jasmine.Spy;
+    resize: jasmine.Spy;
+    remove: jasmine.Spy;
+};
+
 
 interface MarkerLike
 {
@@ -63,11 +76,11 @@ class MyCitiesStoreMock
     }
 }
 
-function createFakeMap(): { map: MapboxMapLike; handlers: { load?: LoadHandler; styleLoad?: LoadHandler } }
+function createFakeMap(): { map: MapboxMapLikeSpy; handlers: { load?: LoadHandler; styleLoad?: LoadHandler } }
 {
     const handlers: { load?: LoadHandler; styleLoad?: LoadHandler } = {};
 
-    const map: MapboxMapLike =
+    const map: MapboxMapLikeSpy =
     {
         on: jasmine.createSpy('on').and.callFake((event: 'load', handler: LoadHandler) =>
         {
@@ -77,8 +90,13 @@ function createFakeMap(): { map: MapboxMapLike; handlers: { load?: LoadHandler; 
             }
         }),
 
-        once: jasmine.createSpy('once').and.callFake((event: 'style.load', handler: LoadHandler) =>
+        once: jasmine.createSpy('once').and.callFake((event: 'load' | 'style.load', handler: LoadHandler) =>
         {
+            if (event === 'load')
+            {
+                handlers.load = handler;
+            }
+
             if (event === 'style.load')
             {
                 handlers.styleLoad = handler;
@@ -87,7 +105,6 @@ function createFakeMap(): { map: MapboxMapLike; handlers: { load?: LoadHandler; 
 
         setStyle: jasmine.createSpy('setStyle'),
         fitBounds: jasmine.createSpy('fitBounds'),
-
         addControl: jasmine.createSpy('addControl'),
         resize: jasmine.createSpy('resize'),
         remove: jasmine.createSpy('remove'),
@@ -95,6 +112,7 @@ function createFakeMap(): { map: MapboxMapLike; handlers: { load?: LoadHandler; 
 
     return { map, handlers };
 }
+
 
 function createFakeMarker(): MarkerLike
 {
@@ -259,6 +277,9 @@ describe('MapboxMapComponent', () =>
 
         fixture.detectChanges();
 
+        // Fire the load event registered by initMapOnce()
+        factory.mapResult.handlers.load?.();
+
         expect(myCitiesStoreMock.ensureLoaded).toHaveBeenCalled();
         expect(factory.mapResult.map.addControl).toHaveBeenCalled();
         expect(factory.mapResult.map.resize).toHaveBeenCalled();
@@ -285,10 +306,15 @@ describe('MapboxMapComponent', () =>
         expect(factory.mapResult.map.fitBounds).toHaveBeenCalled();
     });
 
-    it('onBasemapChange should set basemap mode and return early when map is not ready', () =>
+   it('onBasemapChange should set basemap mode and return early when map is not ready', () =>
     {
         fixture.detectChanges();
 
+        // init likely called these already
+        (factory.mapResult.map.setStyle as jasmine.Spy).calls.reset();
+        (factory.mapResult.map.once as jasmine.Spy).calls.reset();
+
+        // ensure the component map is not ready
         (component as unknown as { map?: mapboxgl.Map }).map = undefined;
 
         component.onBasemapChange('navNight');
@@ -297,6 +323,7 @@ describe('MapboxMapComponent', () =>
         expect(factory.mapResult.map.setStyle).not.toHaveBeenCalled();
         expect(factory.mapResult.map.once).not.toHaveBeenCalled();
     });
+
 
     it('onBasemapChange should call setStyle and re-render after style.load when latestCities exists', () =>
     {
@@ -345,12 +372,25 @@ describe('MapboxMapComponent', () =>
     {
         fixture.detectChanges();
 
+        // Map init may have already called `once` / `setStyle` during detectChanges().
+        factory.mapResult.map.once.calls.reset();
+        factory.mapResult.map.setStyle.calls.reset();
+
         // Arrange: set currentStyle to the exact style that navNight maps to
-        // We read the component’s own basemapStyles to avoid hardcoding.
-        const basemapStyles = (component as unknown as { basemapStyles: Record<string, string> }).basemapStyles;
+        interface HasBasemapStyles
+        {
+            basemapStyles: Record<string, string>;
+        }
+
+        interface HasCurrentStyle
+        {
+            currentStyle: string;
+        }
+
+        const basemapStyles = (component as unknown as HasBasemapStyles).basemapStyles;
         const targetStyle = basemapStyles['navNight'];
 
-        (component as unknown as { currentStyle: string }).currentStyle = targetStyle;
+        (component as unknown as HasCurrentStyle).currentStyle = targetStyle;
 
         // Act
         component.onBasemapChange('navNight');
@@ -362,6 +402,7 @@ describe('MapboxMapComponent', () =>
         expect(factory.mapResult.map.setStyle).not.toHaveBeenCalled();
         expect(factory.mapResult.map.once).not.toHaveBeenCalled();
     });
+
 
     it('map load handler should render markers if latestCities is already stored', () =>
     {
@@ -502,7 +543,7 @@ describe('MapboxMapComponent', () =>
     it('ngAfterViewInit should still init map when ensureLoaded errors', () =>
     {
         // Arrange
-        spyOn(factory, 'createMap').and.callThrough();
+        const createMapSpy = spyOn(factory, 'createMap').and.callThrough();
 
         spyOn(myCitiesStoreMock, 'ensureLoaded').and.returnValue(
             throwError(() => new Error('boom'))
@@ -511,9 +552,12 @@ describe('MapboxMapComponent', () =>
         // Act
         fixture.detectChanges();
 
-        // Assert: map init still happened (your code calls initMapOnce in error path)
+        // Fire the load event that initMapOnce registered via once('load', ...)
+        factory.mapResult.handlers.load?.();
+
+        // Assert
         expect(myCitiesStoreMock.ensureLoaded).toHaveBeenCalled();
-        expect(factory.createMap).toHaveBeenCalled();
+        expect(createMapSpy).toHaveBeenCalled();
         expect(factory.mapResult.map.addControl).toHaveBeenCalled();
         expect(factory.mapResult.map.resize).toHaveBeenCalled();
     });
@@ -613,6 +657,89 @@ describe('MapboxMapComponent', () =>
 
         expect(factory.createdMarkers.length).toBe(0);
         expect(factory.mapResult.map.fitBounds).not.toHaveBeenCalled();
+    });
+
+});
+
+describe('MapboxMapComponent', () =>
+{
+    let component: MapboxMapComponent;
+    let fixture: ComponentFixture<MapboxMapComponent>;
+    
+    let myCitiesStoreMock: MyCitiesStoreService;
+
+    beforeEach(async () =>
+    {
+         // Minimal stub: buildPopupHtml doesn't touch it.
+        myCitiesStoreMock = {} as unknown as MyCitiesStoreService;
+
+        
+        const mapboxFactoryStub = () => ({}) as unknown; // never called in these tests
+
+        await TestBed.configureTestingModule(
+        {
+            imports: [MapboxMapComponent],
+            providers:
+            [
+                { provide: MyCitiesStoreService, useValue: myCitiesStoreMock },
+                { provide: MAPBOX_FACTORY, useValue: mapboxFactoryStub }
+            ]
+        }).compileComponents();
+
+        fixture = TestBed.createComponent(MapboxMapComponent);
+        component = fixture.componentInstance;
+    });
+
+    describe('buildPopupHtml notes block', () =>
+    {
+        function getSut(component: unknown): { buildPopupHtml: (city: MyCityDto) => string }
+        {
+            return component as unknown as { buildPopupHtml: (city: MyCityDto) => string };
+        }
+
+        it('includes Notes block when notes has non-whitespace content', () =>
+        {
+            const city: MyCityDto =
+            {
+                id: 1,
+                city: 'Test City',
+                country: 'Test Country',
+                region: 'Test Region',
+                notes: '  Hello world  ',
+                lat: 0,
+                lon: 0,
+                stayDuration: '',
+                decades: ''
+            };
+
+            const sut = getSut(component);
+            const html = sut.buildPopupHtml(city);
+
+            expect(html).toContain('Notes:');
+            expect(html).toContain('Hello world');
+        });
+
+        it('omits Notes block when notes is only whitespace (trim => empty)', () =>
+        {
+            const city: MyCityDto =
+            {
+                id: 2,
+                city: 'Test City',
+                country: 'Test Country',
+                region: 'Test Region',
+                notes: '     ',
+                lat: 0,
+                lon: 0,
+                stayDuration: '',
+                decades: ''
+            };
+
+            const sut = getSut(component);
+            const html = sut.buildPopupHtml(city);
+
+            expect(html).not.toContain('Notes:');
+            expect(html).not.toContain('white-space: pre-wrap');
+        });
     });
 
 });

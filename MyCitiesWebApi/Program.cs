@@ -1,9 +1,8 @@
-
-using Microsoft.Extensions.Options;
 using MyCitiesDataAccess;
-using MyCitiesWebApi.Options;
 using Serilog;
 using System.Diagnostics;
+using Microsoft.EntityFrameworkCore;
+using MyCitiesDataAccess.Contexts;
 
 namespace MyCitiesWebApi
 {
@@ -49,21 +48,34 @@ namespace MyCitiesWebApi
 
             #region Application Service
 
+
+            // ***************************************************************************//
+
+            // The following will load the data for this application from the Excel file 
+            // This was used during initial development but has now been replaced by
+            // the EF-based service that reads from the SQL database.
+            // builder.Services.Configure<MyCitiesDataOptions>(
+            // builder.Configuration.GetSection("MyCitiesData"));
+            // builder.Services.AddSingleton<IMyCitiesDataService>(sp =>
+            // {
+            //    var env = sp.GetRequiredService<IWebHostEnvironment>();
+            //    var opts = sp.GetRequiredService<IOptions<MyCitiesDataOptions>>().Value;
+            //    var logger = sp.GetRequiredService<ILogger<ExcelMyCitiesDataService>>();
+
+            //    var fullPath = Path.Combine(env.ContentRootPath, opts.ExcelFilePath);
+
+            //    return new ExcelMyCitiesDataService(fullPath, opts.WorksheetName, logger);
+            // });
+
+            // ***************************************************************************//
+
             //DataAccess 
-            builder.Services.Configure<MyCitiesDataOptions>(
-                builder.Configuration.GetSection("MyCitiesData"));
-
-            builder.Services.AddSingleton<IMyCitiesDataService>(sp =>
+            builder.Services.AddDbContext<MyCitiesDbContext>(options =>
             {
-                var env = sp.GetRequiredService<IWebHostEnvironment>();
-                var opts = sp.GetRequiredService<IOptions<MyCitiesDataOptions>>().Value;
-                var logger = sp.GetRequiredService<ILogger<ExcelMyCitiesDataService>>();
-
-                var fullPath = Path.Combine(env.ContentRootPath, opts.ExcelFilePath);
-
-                return new ExcelMyCitiesDataService(fullPath, opts.WorksheetName, logger);
+                options.UseSqlServer(builder.Configuration.GetConnectionString("MyCities"));
             });
 
+            builder.Services.AddScoped<IMyCitiesDataService, EfMyCitiesDataService>();
 
 
             #endregion

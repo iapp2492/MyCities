@@ -28,11 +28,7 @@ export class MapboxMapComponent implements AfterViewInit, OnDestroy
     private readonly basemapStyles: Record<string, string> =
     {
         standard: 'mapbox://styles/mapbox/standard',
-        streets: 'mapbox://styles/mapbox/streets-v12',
         outdoors: 'mapbox://styles/mapbox/outdoors-v12',
-        light: 'mapbox://styles/mapbox/light-v11',
-        dark: 'mapbox://styles/mapbox/dark-v11',
-        satellite: 'mapbox://styles/mapbox/satellite-v9',
         satelliteStreets: 'mapbox://styles/mapbox/satellite-streets-v12',
         navDay: 'mapbox://styles/mapbox/navigation-day-v1',
         navNight: 'mapbox://styles/mapbox/navigation-night-v1'
@@ -141,9 +137,7 @@ export class MapboxMapComponent implements AfterViewInit, OnDestroy
         if (this.map) 
         {
             return;
-        }   
-
-        
+        } 
 
         this.map =  this.mapbox.createMap(
         {
@@ -155,23 +149,22 @@ export class MapboxMapComponent implements AfterViewInit, OnDestroy
 
         this.currentStyle = this.basemapStyles[this.selectedBasemap ?? 'standard'];
 
-        requestAnimationFrame(() => this.map?.resize());
-
-        // Optional nice controls
-        this.map.addControl(this.mapbox.createNavigationControl(), 'top-right');
-
-        // When the map is ready, do an initial render if data already exists
-        this.map.on('load', () => 
+        this.map.once('load', () =>
         {
-            if (this.latestCities) 
+            this.map?.resize();
+            setTimeout(() => this.map?.resize(), 0);
+
+            if (this.latestCities)
             {
                 this.renderMarkers(this.latestCities);
             }
         });
 
+        // Optional nice controls
+        this.map.addControl(this.mapbox.createNavigationControl(), 'top-right');
+
         // Initial render occurs either here (if data already exists)
         // or via the filteredCities subscription in ngAfterViewInit.
-
     }
 
     private renderMarkers(cities: MyCityDto[]): void 
@@ -210,14 +203,7 @@ export class MapboxMapComponent implements AfterViewInit, OnDestroy
 
             const el = this.createMarkerElement();
 
-            const popupHtml = `
-                <div style="font-size: 13px; line-height: 1.25;">
-                <div style="font-weight: 700; margin-bottom: 6px;">${this.escapeHtml(city.city)}</div>
-                <div><b>Country:</b> ${this.escapeHtml(city.country)}</div>
-                ${city.stayDuration ? `<div><b>Stay:</b> ${this.escapeHtml(city.stayDuration)}</div>` : ''}
-                ${city.decades ? `<div><b>Decades:</b> ${this.escapeHtml(city.decades)}</div>` : ''}
-                </div>
-            `;
+            const popupHtml = this.buildPopupHtml(city);
 
             const popup = this.mapbox.createPopup(
             {
@@ -244,6 +230,31 @@ export class MapboxMapComponent implements AfterViewInit, OnDestroy
             padding: 50,
             maxZoom: 9
         });
+    }
+
+    private buildPopupHtml(city: MyCityDto): string
+    {
+        const notes = city.notes?.trim();
+
+        return `
+            <div style="font-size: 13px; line-height: 1.35; max-width: 320px;">
+                <div style="font-weight: 700; margin-bottom: 6px;">
+                    ${this.escapeHtml(city.city)}
+                </div>
+
+                <div><b>Country:</b> ${this.escapeHtml(city.country)}</div>
+                ${city.stayDuration ? `<div><b>Stay:</b> ${this.escapeHtml(city.stayDuration)}</div>` : ''}
+                ${city.decades ? `<div><b>Decades:</b> ${this.escapeHtml(city.decades)}</div>` : ''}
+
+                ${notes ? `
+                    <div style="margin-top: 8px;">
+                        <div style="font-weight: 600; margin-bottom: 4px;">Notes:</div>
+                        <div style="white-space: pre-wrap; text-align: left;">${this.escapeHtml(notes)}</div>
+                    </div>
+                ` : ''}
+
+            </div>
+            `;
     }
 
     private clearMarkers(): void 
