@@ -1,0 +1,57 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<RunSettings>
+	<DataCollectionRunSettings>
+		<DataCollectors>
+			<DataCollector friendlyName="Code Coverage">
+				<Configuration>
+					<CodeCoverage>
+
+						<!-- 1) Exclude entire assemblies (modules) -->
+						<ModulePaths>
+							<Exclude>
+								<!-- Exclude test assemblies -->
+								<ModulePath>.*\\.*Tests\.dll</ModulePath>
+								<ModulePath>.*\\.*Test\.dll</ModulePath>
+							</Exclude>
+						</ModulePaths>
+
+						<!-- 2) Exclude by function/type name -->
+						<Functions>
+							<Exclude>
+
+								<!-- Exclude EF entity models -->
+								<Function>.*MyCitiesDataAccess\.Models\..*</Function>
+
+								<!-- Exclude DTOs (pure data shapes) -->
+								<Function>.*MyCitiesDataAccess\.Dtos\..*</Function>
+
+								<!-- Exclude settings POCOs -->
+								<Function>.*MyCitiesWebApi\..*Settings\..*</Function>
+
+								<!-- Exclude Program startup glue -->
+								<Function>.*MyCitiesWebApi\.Program\..*</Function>
+
+								<!-- Exclude ANY compiler-generated class:
+									async state machines, lambdas, display classes, etc. -->
+								<Function>.*&lt;&gt;.*</Function>
+								
+								<!-- Exclude options POCOs -->
+								<Function>.*MyCitiesWebApi\.Options\..*</Function>
+
+								<!-- Exclude EF OnModelCreating -->
+								<Function>.*OnModelCreating.*</Function>
+
+								<!-- Exclude entire DbContext mapping boilerplate -->
+								<Function>.*MyCitiesDataAccess\.Contexts\..*</Function>
+
+
+							</Exclude>
+						</Functions>
+
+					</CodeCoverage>
+				</Configuration>
+			</DataCollector>
+		</DataCollectors>
+	</DataCollectionRunSettings>
+</RunSettings>
+

@@ -1,0 +1,2 @@
+# Disable IDE0028 (Collection initialization can be simplified)
+dotnet_diagnostic.IDE0028.severity = none
