@@ -35,5 +35,24 @@
             }
         </select>
      }
+
+     <mat-button-toggle-group
+        [value]="currentEngine"
+        (change)="onEngineChange($event.value)"
+        class="engine-segment">
+        
+        <mat-button-toggle value="leaflet">
+            Leaflet
+        </mat-button-toggle>
+
+        <mat-button-toggle value="mapbox">
+            Mapbox
+        </mat-button-toggle>
+
+        <mat-button-toggle value="google">
+            Google
+        </mat-button-toggle>
+
+    </mat-button-toggle-group>
     
 </div>

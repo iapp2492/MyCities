@@ -6,6 +6,9 @@ import type { MyCityDto } from '../../../models/myCityDto';
 import type { BasemapMode } from '../../../models/basemapMode';
 import { MAPBOX_FACTORY } from '../../core/map/mapbox.factory';
 import type { MapboxFactory } from '../../core/map/mapbox.factory';
+import { MapHintService } from '../../core/services/map-hint.service';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { CityPopupHtmlService } from '../../core/services/city-popup-html.service';
 
 
 type LoadHandler = () => void;
@@ -14,6 +17,8 @@ interface MapboxMapLike
 {
     on(event: 'load', handler: LoadHandler): void;
     once(event: 'load' | 'style.load', handler: LoadHandler): void;
+
+    loaded(): boolean;
 
     setStyle(style: string): void;
     fitBounds(bounds: unknown, options?: unknown): void;
@@ -27,6 +32,7 @@ type MapboxMapLikeSpy = Omit<MapboxMapLike, 'on' | 'once' | 'setStyle' | 'fitBou
 {
     on: jasmine.Spy;
     once: jasmine.Spy;
+    loaded: jasmine.Spy;
     setStyle: jasmine.Spy;
     fitBounds: jasmine.Spy;
     addControl: jasmine.Spy;
@@ -52,6 +58,25 @@ interface BoundsLike
 {
     extend(lngLat: [number, number]): void;
 }
+
+class MapHintServiceMock
+{
+    showOnceIfNeeded = jasmine.createSpy('showOnceIfNeeded');
+}
+
+class CityPopupHtmlServiceMock
+{
+    build = jasmine.createSpy('build').and.callFake((city: MyCityDto) =>
+    {
+        return `<div>${city.city}</div>`;
+    });
+}
+
+const snackBarMock =
+{
+    open: jasmine.createSpy('open')
+};
+
 
 class MyCitiesStoreMock
 {
@@ -103,6 +128,7 @@ function createFakeMap(): { map: MapboxMapLikeSpy; handlers: { load?: LoadHandle
             }
         }),
 
+        loaded: jasmine.createSpy('loaded').and.returnValue(false),
         setStyle: jasmine.createSpy('setStyle'),
         fitBounds: jasmine.createSpy('fitBounds'),
         addControl: jasmine.createSpy('addControl'),
@@ -221,6 +247,10 @@ describe('MapboxMapComponent', () =>
             [
                 { provide: MyCitiesStoreService, useValue: myCitiesStoreMock },
                 { provide: MAPBOX_FACTORY, useValue: factory },
+
+                { provide: MapHintService, useClass: MapHintServiceMock },
+                { provide: MatSnackBar, useValue: snackBarMock },
+                { provide: CityPopupHtmlService, useClass: CityPopupHtmlServiceMock }
             ]
         })
         .compileComponents();
@@ -273,7 +303,7 @@ describe('MapboxMapComponent', () =>
 
     it('ngAfterViewInit should call ensureLoaded and create the map once', () =>
     {
-        spyOn(myCitiesStoreMock, 'ensureLoaded').and.callThrough();
+    spyOn(myCitiesStoreMock, 'ensureLoaded').and.returnValue(of(void 0));
 
         fixture.detectChanges();
 
@@ -484,43 +514,26 @@ describe('MapboxMapComponent', () =>
         expect(options?.padding).toBe(50);
         expect(options?.maxZoom).toBe(9);
     });
-
-    it('escapeHtml should escape &, <, >, ", and apostrophe and handle null/undefined', () =>
+    
+    it('renderMarkers should build popup HTML via CityPopupHtmlService and pass it to setHTML', () =>
     {
         fixture.detectChanges();
 
-        const escape = (component as unknown as { escapeHtml: (v: unknown) => string }).escapeHtml;
-
-        expect(escape(null)).toBe('');
-        expect(escape(undefined)).toBe('');
-
-        const raw = `a&b<c>d"e'f`;
-        const escaped = escape(raw);
-
-        expect(escaped).toBe('a&amp;b&lt;c&gt;d&quot;e&#039;f');
-    });
-
-    it('renderMarkers should include Stay/Decades in popup HTML only when values exist', () =>
-    {
-        fixture.detectChanges();
+        const popupSvc = TestBed.inject(CityPopupHtmlService) as unknown as CityPopupHtmlServiceMock;
 
         const cities =
         [
-            { city: 'WithBoth', country: 'X', lat: 10, lon: 20, stayDuration: '3 days', decades: '1990s' } as unknown as MyCityDto,
-            { city: 'WithNeither', country: 'X', lat: 11, lon: 21, stayDuration: '', decades: '' } as unknown as MyCityDto,
+            { city: 'Good1', country: 'X', lat: 10, lon: 20 } as unknown as MyCityDto,
+            { city: 'Good2', country: 'X', lat: 11, lon: 21 } as unknown as MyCityDto
         ];
 
         myCitiesStoreMock.emitCities(cities);
 
-        // We created 2 popups; get the HTML that was sent to setHTML across them.
-        const htmlCalls = factory.createdPopups
-            .map(p => (p.setHTML as jasmine.Spy).calls.mostRecent().args[0] as string);
+        expect(popupSvc.build).toHaveBeenCalledTimes(2);
 
-        // One should contain both optional blocks
-        expect(htmlCalls.some(h => h.includes('<b>Stay:</b>') && h.includes('<b>Decades:</b>'))).toBeTrue();
-
-        // One should contain neither optional block
-        expect(htmlCalls.some(h => !h.includes('<b>Stay:</b>') && !h.includes('<b>Decades:</b>'))).toBeTrue();
+        // Ensure setHTML received what build() returned
+        expect((factory.createdPopups[0].setHTML as jasmine.Spy).calls.mostRecent().args[0]).toContain('Good1');
+        expect((factory.createdPopups[1].setHTML as jasmine.Spy).calls.mostRecent().args[0]).toContain('Good2');
     });
 
     it('initMapOnce should return early and not create a second map when map already exists', () =>
@@ -657,89 +670,6 @@ describe('MapboxMapComponent', () =>
 
         expect(factory.createdMarkers.length).toBe(0);
         expect(factory.mapResult.map.fitBounds).not.toHaveBeenCalled();
-    });
-
-});
-
-describe('MapboxMapComponent', () =>
-{
-    let component: MapboxMapComponent;
-    let fixture: ComponentFixture<MapboxMapComponent>;
-    
-    let myCitiesStoreMock: MyCitiesStoreService;
-
-    beforeEach(async () =>
-    {
-         // Minimal stub: buildPopupHtml doesn't touch it.
-        myCitiesStoreMock = {} as unknown as MyCitiesStoreService;
-
-        
-        const mapboxFactoryStub = () => ({}) as unknown; // never called in these tests
-
-        await TestBed.configureTestingModule(
-        {
-            imports: [MapboxMapComponent],
-            providers:
-            [
-                { provide: MyCitiesStoreService, useValue: myCitiesStoreMock },
-                { provide: MAPBOX_FACTORY, useValue: mapboxFactoryStub }
-            ]
-        }).compileComponents();
-
-        fixture = TestBed.createComponent(MapboxMapComponent);
-        component = fixture.componentInstance;
-    });
-
-    describe('buildPopupHtml notes block', () =>
-    {
-        function getSut(component: unknown): { buildPopupHtml: (city: MyCityDto) => string }
-        {
-            return component as unknown as { buildPopupHtml: (city: MyCityDto) => string };
-        }
-
-        it('includes Notes block when notes has non-whitespace content', () =>
-        {
-            const city: MyCityDto =
-            {
-                id: 1,
-                city: 'Test City',
-                country: 'Test Country',
-                region: 'Test Region',
-                notes: '  Hello world  ',
-                lat: 0,
-                lon: 0,
-                stayDuration: '',
-                decades: ''
-            };
-
-            const sut = getSut(component);
-            const html = sut.buildPopupHtml(city);
-
-            expect(html).toContain('Notes:');
-            expect(html).toContain('Hello world');
-        });
-
-        it('omits Notes block when notes is only whitespace (trim => empty)', () =>
-        {
-            const city: MyCityDto =
-            {
-                id: 2,
-                city: 'Test City',
-                country: 'Test Country',
-                region: 'Test Region',
-                notes: '     ',
-                lat: 0,
-                lon: 0,
-                stayDuration: '',
-                decades: ''
-            };
-
-            const sut = getSut(component);
-            const html = sut.buildPopupHtml(city);
-
-            expect(html).not.toContain('Notes:');
-            expect(html).not.toContain('white-space: pre-wrap');
-        });
     });
 
 });

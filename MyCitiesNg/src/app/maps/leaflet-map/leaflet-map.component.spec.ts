@@ -6,6 +6,9 @@ import type { MyCityDto } from '../../../models/myCityDto';
 import type { BasemapMode } from '../../../models/basemapMode';
 
 import * as L from 'leaflet';
+import { MapHintService } from '../../core/services/map-hint.service';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { CityPopupHtmlService } from '../../core/services/city-popup-html.service';
 
 type ZoomHandler = (zoom?: number) => void;
 
@@ -16,6 +19,7 @@ interface LeafletMapLike
 
     getZoom(): number;
     fitBounds(bounds: unknown, options?: unknown): void;
+    whenReady(handler: () => void): void;
     remove(): void;
 }
 
@@ -91,6 +95,11 @@ function createFakeMap(): LeafletMapLike
     const offSpy = jasmine.createSpy('off');
     const getZoomSpy = jasmine.createSpy('getZoom').and.returnValue(10);
     const fitBoundsSpy = jasmine.createSpy('fitBounds');
+    const whenReadySpy = jasmine.createSpy('whenReady').and.callFake((handler: () => void) =>
+    {
+        // In unit tests, treat the map as "ready" immediately
+        handler();
+    });
     const removeSpy = jasmine.createSpy('remove');
 
     const map: LeafletMapLike =
@@ -99,6 +108,7 @@ function createFakeMap(): LeafletMapLike
         off: offSpy,
         getZoom: getZoomSpy,
         fitBounds: fitBoundsSpy,
+        whenReady: whenReadySpy,
         remove: removeSpy,
     };
 
@@ -202,11 +212,33 @@ describe('LeafletMapComponent', () =>
         {
             defaultRecord['mergeOptions'] = jasmine.createSpy('mergeOptions');
         }
+        const mapHintServiceMock =
+        {
+            showOnceIfNeeded: jasmine.createSpy('showOnceIfNeeded')
+                .and.callFake((): void =>
+                {
+                    // no-op: we just need this to exist so ngAfterViewInit doesn't crash
+                })
+        };
+
+        const snackBarMock =
+        {
+            open: jasmine.createSpy('open')
+        };
+
+        const popupHtmlMock =
+        {
+            build: jasmine.createSpy('build').and.returnValue('<div>popup</div>')
+        };
 
         await TestBed.configureTestingModule(
         {
             imports: [LeafletMapComponent],
-            providers: [{ provide: MyCitiesStoreService, useValue: myCitiesStoreMock }],
+            providers: [
+                    { provide: MyCitiesStoreService, useValue: myCitiesStoreMock },
+                    { provide: MapHintService, useValue: mapHintServiceMock },
+                    { provide: MatSnackBar, useValue: snackBarMock },
+                    { provide: CityPopupHtmlService, useValue: popupHtmlMock },],
         })
         .compileComponents();
 

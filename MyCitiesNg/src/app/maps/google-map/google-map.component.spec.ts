@@ -5,16 +5,8 @@ import { GoogleMapsLoaderService } from '../../core/services/google-maps-loader.
 import { MyCitiesStoreService } from '../../core/services/my-cities-store.service';
 import type { MyCityDto } from '../../../models/myCityDto';
 import type { BasemapMode } from '../../../models/basemapMode';
-
-interface GoogleMocks
-{
-    mapInstance: google.maps.Map;
-    infoWindowInstance: google.maps.InfoWindow;
-    boundsInstance: google.maps.LatLngBounds;
-    createdMarkers: MockAdvancedMarkerElement[];
-    fitBoundsSpy: jasmine.Spy;
-    setMapTypeIdSpy: jasmine.Spy;
-}
+import { MapHintPresenter, MapHintService } from '../../core/services/map-hint.service';
+import { MatSnackBar } from '@angular/material/snack-bar';
 
 class MockAdvancedMarkerElement
 {
@@ -106,44 +98,89 @@ class TestCitiesStoreManualLoadMock extends TestCitiesStoreMock
     }
 }
 
+class MatSnackBarMock
+{
+    public open = jasmine.createSpy('open').and.callFake((_message: string) =>
+    {
+        void _message;
+        return {} as unknown;
+    });
+}
+
+class MapHintServiceMock
+{
+    public showOnceIfNeeded = jasmine.createSpy('showOnceIfNeeded');
+}
+
+interface GoogleMocks
+{
+    mapInstance: google.maps.Map;
+    infoWindowInstance: google.maps.InfoWindow;
+    boundsInstance: google.maps.LatLngBounds;
+    createdMarkers: MockAdvancedMarkerElement[];
+    fitBoundsSpy: jasmine.Spy;
+    setMapTypeIdSpy: jasmine.Spy;
+    getMapCtorOptions(): google.maps.MapOptions | null;
+    triggerIdle(): void;
+    reset(): void;
+}
+
 function installGoogleMapsMocks(): GoogleMocks
 {
     const createdMarkers: MockAdvancedMarkerElement[] = [];
-
     const fitBoundsSpy = jasmine.createSpy('fitBounds');
     const setMapTypeIdSpy = jasmine.createSpy('setMapTypeId');
 
-    // Map mock
+    let mapCtorOptions: google.maps.MapOptions | null = null;
+    let idleHandler: (() => void) | null = null;
+
+    const addListenerOnceSpy = jasmine.createSpy('addListenerOnce')
+        .and.callFake((_instance: unknown, eventName: string, handler: () => void) =>
+        {
+            void _instance;
+            void eventName; 
+            void handler;
+
+            if (eventName === 'idle')
+            {
+                idleHandler = handler;
+            }
+
+            return { remove: () => void 0 };
+        });
+
     const mapInstance =
     {
         fitBounds: fitBoundsSpy,
         setMapTypeId: setMapTypeIdSpy,
     } as unknown as google.maps.Map;
 
-    // InfoWindow mock
     const infoWindowInstance =
     {
         setContent: jasmine.createSpy('setContent'),
         open: jasmine.createSpy('open'),
     } as unknown as google.maps.InfoWindow;
 
-    // LatLngBounds mock
     const boundsInstance =
     {
         extend: jasmine.createSpy('extend'),
     } as unknown as google.maps.LatLngBounds;
 
-    // Attach "google" to globalThis in a typed-safe way (no `as any`)
+
     const globalRecord = globalThis as unknown as Record<string, unknown>;
 
     const googleMock =
     {
         maps:
         {
+            event:
+            {
+                addListenerOnce: addListenerOnceSpy
+            },
             Map: function MockMapCtor(_el: HTMLElement, _opts: unknown)
             {
                 void _el;
-                void _opts;
+                mapCtorOptions = _opts as google.maps.MapOptions;
                 return mapInstance;
             },
             InfoWindow: function MockInfoWindowCtor()
@@ -177,6 +214,19 @@ function installGoogleMapsMocks(): GoogleMocks
         createdMarkers,
         fitBoundsSpy,
         setMapTypeIdSpy,
+        getMapCtorOptions: () => mapCtorOptions,
+        triggerIdle: () =>
+        {
+            idleHandler?.();
+        },
+        reset: () =>
+        {
+            idleHandler = null;
+            mapCtorOptions = null;
+            createdMarkers.length = 0;
+            fitBoundsSpy.calls.reset();
+            setMapTypeIdSpy.calls.reset();
+        }
     };
 }
 
@@ -199,6 +249,7 @@ describe('GoogleMapComponent', () =>
         document.body.appendChild(host);
 
         g = installGoogleMapsMocks();
+        g.reset();
         store = new TestCitiesStoreMock();
 
         await TestBed.configureTestingModule(
@@ -206,7 +257,9 @@ describe('GoogleMapComponent', () =>
             imports: [GoogleMapComponent],
             providers: [
                 { provide: MyCitiesStoreService, useValue: store },
-                { provide: GoogleMapsLoaderService, useClass: GoogleMapsLoaderMock }
+                { provide: GoogleMapsLoaderService, useClass: GoogleMapsLoaderMock },
+                { provide: MapHintService, useClass: MapHintServiceMock },
+                { provide: MatSnackBar, useClass: MatSnackBarMock },
             ]
         }).compileComponents();
 
@@ -218,6 +271,7 @@ describe('GoogleMapComponent', () =>
 
     afterEach(() =>
     {
+        (component as unknown as { map?: google.maps.Map }).map = undefined;
         host?.remove();
         fixture?.destroy();
     });
@@ -225,14 +279,6 @@ describe('GoogleMapComponent', () =>
     it('should create', () =>
     {
         expect(component).toBeTruthy();
-    });
-
-    it('escapeHtml should escape &, <, >, ", and apostrophes', () =>
-    {
-        const value = `a&b<c>d"e'f`;
-        const escaped = (component as unknown as { escapeHtml(v: unknown): string }).escapeHtml(value);
-
-        expect(escaped).toBe('a&amp;b&lt;c&gt;d&quot;e&#039;f');
     });
 
     it('initMapOnce should do nothing when map element is missing', async () =>
@@ -524,40 +570,6 @@ describe('GoogleMapComponent', () =>
         expect(g.createdMarkers.length).toBe(1);
     });
 
-    it('buildPopupHtml should omit Stay and Decades lines when values are empty', () =>
-    {
-        const city = createCity({
-            id: 14,
-            city: 'X',
-            country: 'Y',
-            stayDuration: '',
-            decades: ''
-        });
-
-        const html = (component as unknown as { buildPopupHtml(c: MyCityDto): string }).buildPopupHtml(city);
-
-        expect(html).not.toContain('<b>Stay:</b>');
-        expect(html).not.toContain('<b>Decades:</b>');
-    });
-
-    it('buildPopupHtml should include Stay and Decades lines when values exist', () =>
-    {
-        const city = createCity({
-            id: 15,
-            city: 'X',
-            country: 'Y',
-            stayDuration: '1 week',
-            decades: '2010s'
-        });
-
-        const html = (component as unknown as { buildPopupHtml(c: MyCityDto): string }).buildPopupHtml(city);
-
-        expect(html).toContain('<b>Stay:</b>');
-        expect(html).toContain('1 week');
-        expect(html).toContain('<b>Decades:</b>');
-        expect(html).toContain('2010s');
-    });
-
     it('createMarkerElement should change opacity on mouseenter and mouseleave', () =>
     {
         const el = (component as unknown as { createMarkerElement(): HTMLElement }).createMarkerElement();
@@ -604,58 +616,41 @@ describe('GoogleMapComponent', () =>
 
         await (component as unknown as { initMapOnce(): Promise<void> }).initMapOnce();
 
-        // If you want to assert the option passed into Map constructor,
-        // modify MockMapCtor to capture the _opts argument into a variable and assert it.
+        const opts = g.getMapCtorOptions();
+        expect(opts).not.toBeNull();
+        expect(opts?.mapTypeId).toBe('roadmap' as unknown as google.maps.MapTypeId);
     });
 
-    it('escapeHtml should handle null and undefined', () =>
+    it('initMapOnce idle event should call showOnceIfNeeded and open snackbar via presenter', async () =>
     {
-        const escapeHtml = (component as unknown as { escapeHtml(v: unknown): string }).escapeHtml;
+        const hintService = TestBed.inject(MapHintService) as unknown as MapHintServiceMock;
+        const snackBar = TestBed.inject(MatSnackBar) as unknown as MatSnackBarMock;
 
-        expect(escapeHtml(null)).toBe('');
-        expect(escapeHtml(undefined)).toBe('');
-    });
-
-    it('buildPopupHtml should omit Notes section when notes is null/empty/whitespace', () =>
-    {
-        const city: MyCityDto =
+        hintService.showOnceIfNeeded.and.callFake((_engine: string, presenter: MapHintPresenter) =>
         {
-            id: 1,
-            city: 'Test City',
-            country: 'Test Country',
-            region: '',
-            lat: 0,
-            lon: 0,
-            notes: '   ',         // whitespace should trim to empty
-            stayDuration: '',
-            decades: ''
-        };
+            presenter.showHint('Tip: Tap a marker to see city details.');
+        });
 
-        const html = (component as unknown as { buildPopupHtml(c: MyCityDto): string }).buildPopupHtml(city);
+        await (component as unknown as { initMapOnce(): Promise<void> }).initMapOnce();
 
-        expect(html).not.toContain('Notes:');
+        // The component wires the idle listener; we trigger it explicitly.
+        g.triggerIdle();
+
+        expect(hintService.showOnceIfNeeded).toHaveBeenCalled();
+
+        const args = hintService.showOnceIfNeeded.calls.mostRecent().args;
+        expect(args[0]).toBe('google');
+
+        expect(snackBar.open).toHaveBeenCalledWith(
+            'Tip: Tap a marker to see city details.',
+            'Got it',
+            {
+                duration: 8000,
+                horizontalPosition: 'center',
+                verticalPosition: 'top',
+                panelClass: ['mycities-toast']
+            }
+        );
     });
-
-    it('buildPopupHtml should include Notes section when notes is present and escape HTML', () =>
-    {
-        const city: MyCityDto =
-        {
-            id: 1,
-            city: 'Test City',
-            country: 'Test Country',
-            region: '',
-            lat: 0,
-            lon: 0,
-            notes: '<b>hello</b>',
-            stayDuration: '',
-            decades: ''
-        };
-
-        const html = (component as unknown as { buildPopupHtml(c: MyCityDto): string }).buildPopupHtml(city);
-
-        expect(html).toContain('Notes:');
-        expect(html).toContain('&lt;b&gt;hello&lt;/b&gt;'); // proves escaping
-    });
-
 
 });

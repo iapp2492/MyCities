@@ -7,6 +7,9 @@ import { MyCityDto } from '../../../models/myCityDto';
 import { MapFiltersBarComponent, BasemapOption } from '../../shared/components/map-filters-bar/map-filters-bar.component';
 import type { BasemapMode } from '../../../models/basemapMode';
 import { MAPBOX_FACTORY } from '../../core/map/mapbox.factory';
+import { MapHintService } from '../../core/services/map-hint.service';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { CityPopupHtmlService } from '../../core/services/city-popup-html.service';
 
 @Component({
   selector: 'app-mapbox-map',
@@ -20,6 +23,9 @@ export class MapboxMapComponent implements AfterViewInit, OnDestroy
     private readonly citiesStore = inject(MyCitiesStoreService);
     private readonly destroyRef = inject(DestroyRef);
     private readonly mapbox = inject(MAPBOX_FACTORY);
+    private readonly mapHintService = inject(MapHintService);
+    private readonly snackBar = inject(MatSnackBar);
+    private readonly popupHtml = inject(CityPopupHtmlService);
 
     private map?: mapboxgl.Map;
     private markers: mapboxgl.Marker[] = [];
@@ -62,6 +68,36 @@ export class MapboxMapComponent implements AfterViewInit, OnDestroy
     {
         this.selectedStayDuration = value;
         this.citiesStore.setStayDurationFilter(value ?? '');
+    }    
+
+    ngAfterViewInit(): void 
+    {
+        // 1) Ensure data is loaded (cached after first call anywhere)
+        this.citiesStore.ensureLoaded()
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe(
+        {
+            next: () => this.initMapOnce(),
+            error: () => this.initMapOnce() // still init; we just have no markers
+        });
+
+
+        // 2) Render markers based on filteredCities$ (filters affect map automatically)
+        this.citiesStore.filteredCities$
+        .pipe(
+            tap((cities: MyCityDto[] | null) => console.log('filteredCities$ emitted:', cities)),
+            takeUntilDestroyed(this.destroyRef),
+            filter((cities): cities is MyCityDto[] => Array.isArray(cities))
+        )
+        .subscribe(cities => 
+        {
+            this.latestCities = cities; // store latest for use if map isn’t ready yet
+            if (!this.map) 
+            {
+                return;
+            }
+            this.renderMarkers(cities);
+        });
     }
 
     // Unlike the other two filters, there will always be a valid basemap (never null) 
@@ -84,52 +120,26 @@ export class MapboxMapComponent implements AfterViewInit, OnDestroy
         }
 
         this.currentStyle = styleUrl;
-        this.map.setStyle(styleUrl);
+
+        const map = this.map;
+
+        map.setStyle(styleUrl);
 
         // After style loads, re-fit markers
-        this.map.once('style.load', () =>
+        map.once('style.load', () =>
         {
+            // First, ensure layout is correct
+            map.resize();
+
+            // Optional microtask resize (helps on some mobile layouts)
+            setTimeout(() => map.resize(), 0);
+
+            // Then re-render the markers
             if (this.latestCities)
             {
                 this.renderMarkers(this.latestCities);
             }
         });
-    }
-
-    ngAfterViewInit(): void 
-    {
-        // 1) Ensure data is loaded (cached after first call anywhere)
-        this.citiesStore.ensureLoaded()
-        .pipe(takeUntilDestroyed(this.destroyRef))
-        .subscribe(
-        {
-            next: () => this.initMapOnce(),
-            error: () => this.initMapOnce() // still init; you'll just have no markers
-        });
-
-
-        // 2) Render markers based on filteredCities$ (filters affect map automatically)
-        this.citiesStore.filteredCities$
-        .pipe(
-            tap((cities: MyCityDto[] | null) => console.log('filteredCities$ emitted:', cities)),
-            takeUntilDestroyed(this.destroyRef),
-            filter((cities): cities is MyCityDto[] => Array.isArray(cities))
-        )
-        .subscribe(cities => 
-        {
-            this.latestCities = cities; // store latest for use if map isn’t ready yet
-            if (!this.map) 
-            {
-                return;
-            }
-            this.renderMarkers(cities);
-        });
-    }
-
-    ngOnDestroy(): void 
-    {
-        this.clearMarkers();
-        this.map?.remove();
     }
 
     private initMapOnce(): void 
@@ -149,19 +159,49 @@ export class MapboxMapComponent implements AfterViewInit, OnDestroy
 
         this.currentStyle = this.basemapStyles[this.selectedBasemap ?? 'standard'];
 
-        this.map.once('load', () =>
+        if (!this.map)
         {
-            this.map?.resize();
-            setTimeout(() => this.map?.resize(), 0);
+            return;
+        }
+
+        const map = this.map;
+
+        const runAfterLoad = (): void =>
+        {
+            map.resize();
+            setTimeout(() => map.resize(), 0);
+
+            this.mapHintService.showOnceIfNeeded('mapbox',
+            {
+                showHint: (message: string): void =>
+                {
+                    this.snackBar.open(message, 'Got it',
+                    {
+                        duration: 8000,
+                        horizontalPosition: 'center',
+                        verticalPosition: 'top',
+                        panelClass: ['mycities-toast']
+                    });
+                }
+            });
 
             if (this.latestCities)
             {
                 this.renderMarkers(this.latestCities);
             }
-        });
+        };
+
+        if (map.loaded())
+        {
+            runAfterLoad();
+        }
+        else
+        {
+            map.once('load', runAfterLoad);
+        }
 
         // Optional nice controls
-        this.map.addControl(this.mapbox.createNavigationControl(), 'top-right');
+        map.addControl(this.mapbox.createNavigationControl(), 'top-right');
 
         // Initial render occurs either here (if data already exists)
         // or via the filteredCities subscription in ngAfterViewInit.
@@ -203,7 +243,7 @@ export class MapboxMapComponent implements AfterViewInit, OnDestroy
 
             const el = this.createMarkerElement();
 
-            const popupHtml = this.buildPopupHtml(city);
+            const popupHtml = this.popupHtml.build(city);
 
             const popup = this.mapbox.createPopup(
             {
@@ -232,31 +272,6 @@ export class MapboxMapComponent implements AfterViewInit, OnDestroy
         });
     }
 
-    private buildPopupHtml(city: MyCityDto): string
-    {
-        const notes = city.notes?.trim();
-
-        return `
-            <div style="font-size: 13px; line-height: 1.35; max-width: 320px;">
-                <div style="font-weight: 700; margin-bottom: 6px;">
-                    ${this.escapeHtml(city.city)}
-                </div>
-
-                <div><b>Country:</b> ${this.escapeHtml(city.country)}</div>
-                ${city.stayDuration ? `<div><b>Stay:</b> ${this.escapeHtml(city.stayDuration)}</div>` : ''}
-                ${city.decades ? `<div><b>Decades:</b> ${this.escapeHtml(city.decades)}</div>` : ''}
-
-                ${notes ? `
-                    <div style="margin-top: 8px;">
-                        <div style="font-weight: 600; margin-bottom: 4px;">Notes:</div>
-                        <div style="white-space: pre-wrap; text-align: left;">${this.escapeHtml(notes)}</div>
-                    </div>
-                ` : ''}
-
-            </div>
-            `;
-    }
-
     private clearMarkers(): void 
     {
         for (const m of this.markers) 
@@ -268,33 +283,45 @@ export class MapboxMapComponent implements AfterViewInit, OnDestroy
 
     private createMarkerElement(): HTMLElement 
     {
+        // Outer element = hit target (finger-friendly)
         const el = document.createElement('div');
-        el.className = 'mycity-marker';
+        el.className = 'mycity-marker-hit';
 
-        // Simple “burgundy dot” with opacity + hover
-        el.style.width = '14px';
-        el.style.height = '14px';
-        el.style.borderRadius = '50%';
-        el.style.background = '#7a1f3d';
+        // Recommended minimum touch target is ~44px
+        el.style.width = '44px';
+        el.style.height = '44px';
+        el.style.display = 'flex';
+        el.style.alignItems = 'center';
+        el.style.justifyContent = 'center';
         el.style.opacity = '0.72';
-        el.style.border = '2px solid rgba(255,255,255,0.9)';
-        el.style.boxShadow = '0 1px 4px rgba(0,0,0,0.35)';
+
+        // Optional: helps on mobile so taps aren’t delayed / interpreted oddly
+        el.style.touchAction = 'manipulation';
+
+        // Inner element = visual dot (same look you already have)
+        const dot = document.createElement('div');
+        dot.className = 'mycity-marker-dot';
+
+        // Simple “burgundy dot” with opacity + hover      
+        dot.style.width = '14px';
+        dot.style.height = '14px';
+        dot.style.borderRadius = '50%';
+        dot.style.background = '#7a1f3d';
+        dot.style.border = '2px solid rgba(255,255,255,0.9)';
+        dot.style.boxShadow = '0 1px 4px rgba(0,0,0,0.35)';
+
+        el.appendChild(dot);
 
         el.addEventListener('mouseenter', () => el.style.opacity = '1');
         el.addEventListener('mouseleave', () => el.style.opacity = '0.72');
 
         return el;
     }
-
-    private escapeHtml(value: unknown): string 
+    
+    ngOnDestroy(): void 
     {
-        const s = String(value ?? '');
-        return s
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;')
-        .replaceAll('"', '&quot;')
-        .replaceAll("'", '&#039;');
+        this.clearMarkers();
+        this.map?.remove();
     }
 
 }

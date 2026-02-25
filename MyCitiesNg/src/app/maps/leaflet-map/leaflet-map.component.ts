@@ -6,6 +6,9 @@ import { MyCityDto } from '../../../models/myCityDto';
 import { CommonModule } from '@angular/common';
 import type { BasemapMode } from '../../../models/basemapMode';
 import { MapFiltersBarComponent, BasemapOption } from '../../shared/components/map-filters-bar/map-filters-bar.component';
+import { MapHintService } from '../../core/services/map-hint.service';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { CityPopupHtmlService } from '../../core/services/city-popup-html.service';
 
 @Component({
     selector: 'app-leaflet-map',
@@ -16,10 +19,14 @@ import { MapFiltersBarComponent, BasemapOption } from '../../shared/components/m
 })
 export class LeafletMapComponent implements AfterViewInit, OnDestroy 
 {
+    private readonly mapHintService = inject(MapHintService);
+    private citiesStore = inject(MyCitiesStoreService);
+    private readonly snackBar = inject(MatSnackBar);
+    private readonly popupHtml = inject(CityPopupHtmlService);
+
     private map?: L.Map;
     private markerLayer = L.layerGroup();
     private destroyRef = inject(DestroyRef);
-    private citiesStore = inject(MyCitiesStoreService);
     private tileLayer?: L.TileLayer;
 
     private readonly MARKER_OPACITY = 0.70;
@@ -81,9 +88,9 @@ export class LeafletMapComponent implements AfterViewInit, OnDestroy
 
         L.Icon.Default.mergeOptions(
             {
-                iconRetinaUrl: '/assets/leaflet/marker-icon-2x.png',
-                iconUrl: '/assets/leaflet/marker-icon.png',
-                shadowUrl: '/assets/leaflet/marker-shadow.png',
+                iconRetinaUrl: 'assets/leaflet/marker-icon-2x.png',
+                iconUrl: 'assets/leaflet/marker-icon.png',
+                shadowUrl: 'assets/leaflet/marker-shadow.png',
             });
 
         if (this.map)
@@ -104,6 +111,23 @@ export class LeafletMapComponent implements AfterViewInit, OnDestroy
 
         this.markerLayer.addTo(this.map);
         this.wireData();
+        
+        this.map.whenReady(() =>
+        {
+            this.mapHintService.showOnceIfNeeded('leaflet',
+            {
+                showHint: (message: string): void =>
+                {
+                    this.snackBar.open(message, 'Got it',
+                    {
+                        duration: 8000,
+                        horizontalPosition: 'center',
+                        verticalPosition: 'top',
+                        panelClass: ['mycities-toast']
+                    });
+                }
+            });
+        });
     }
 
     private renderMarkers(cities: MyCityDto[]): void 
@@ -142,20 +166,7 @@ export class LeafletMapComponent implements AfterViewInit, OnDestroy
                 console.warn(`Skipped ${skipped} cities due to invalid coordinates`);
             }
 
-            const popupHtml = `
-            <div style="min-width: 240px">
-                <div style="font-weight: 600; font-size: 1.05rem; margin-bottom: 6px;">
-                ${this.escapeHtml(city.city)}
-                </div>
-                <div><b>Country:</b> ${this.escapeHtml(city.country)}</div>
-                <div><b>Stay duration:</b> ${this.escapeHtml((city as MyCityDto).stayDuration ?? '')}</div>
-                <div><b>Decades:</b> ${this.escapeHtml((city as MyCityDto).decades ?? '')}</div>
-                ${(city as MyCityDto).notes
-                    ? `<div style="margin-top: 6px;"><b>Notes:</b><br/>${this.escapeHtml((city as MyCityDto).notes)}</div>`
-                    : ''
-                }
-            </div>
-            `;
+            const popupHtml =this.popupHtml.build(city);
 
             const marker = L.marker(
                 [lat, lon],

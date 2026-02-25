@@ -7,6 +7,9 @@ import { MyCityDto } from '../../../models/myCityDto';
 import { MapFiltersBarComponent, BasemapOption } from '../../shared/components/map-filters-bar/map-filters-bar.component';
 import type { BasemapMode } from '../../../models/basemapMode';
 import { environment } from '../../../environments/environment';
+import { MapHintService } from '../../core/services/map-hint.service';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { CityPopupHtmlService } from '../../core/services/city-popup-html.service';
 
 
 @Component({
@@ -18,10 +21,12 @@ import { environment } from '../../../environments/environment';
 })
 export class GoogleMapComponent  implements AfterViewInit, OnDestroy 
 {
-
     private readonly citiesStore = inject(MyCitiesStoreService);
     private readonly destroyRef = inject(DestroyRef);
     private readonly mapsLoader = inject(GoogleMapsLoaderService);
+    private readonly mapHintService = inject(MapHintService);
+    private readonly snackBar = inject(MatSnackBar);
+    private readonly popupHtml = inject(CityPopupHtmlService);
 
     private map?: google.maps.Map;
     private markers: google.maps.marker.AdvancedMarkerElement[] = [];
@@ -126,11 +131,16 @@ export class GoogleMapComponent  implements AfterViewInit, OnDestroy
         });
 
         this.infoWindow = new google.maps.InfoWindow();
+
+        google.maps.event.addListenerOnce(this.map, 'idle', () =>
+        {
+            this.showMapHintOnce();
+        });
         
         if (this.latestCities && this.latestCities.length > 0) 
         {
             this.renderMarkers(this.latestCities);
-        }
+        }      
     }
     
     private renderMarkers(cities: MyCityDto[]): void 
@@ -167,9 +177,9 @@ export class GoogleMapComponent  implements AfterViewInit, OnDestroy
 
             marker.addListener('click', () => 
             {
-            const html = this.buildPopupHtml(city);
-            this.infoWindow?.setContent(html);
-            this.infoWindow?.open({ map: this.map!, anchor: marker });
+                const html = this.popupHtml.build(city);
+                this.infoWindow?.setContent(html);
+                this.infoWindow?.open({ map: this.map!, anchor: marker });
             });
 
             console.log(`Placing marker for ${city.city} at (${city.lat}, ${city.lon})`);
@@ -180,31 +190,6 @@ export class GoogleMapComponent  implements AfterViewInit, OnDestroy
 
         this.map.fitBounds(bounds, 50); // 50px padding
     }
-
-    private buildPopupHtml(city: MyCityDto): string
-    {
-        const notes = city.notes?.trim();
-
-        return `
-        <div style="font-size: 13px; line-height: 1.35; max-width: 320px;">
-            <div style="font-weight: 700; margin-bottom: 6px;">
-                ${this.escapeHtml(city.city)}
-            </div>
-
-            <div><b>Country:</b> ${this.escapeHtml(city.country)}</div>
-            ${city.stayDuration ? `<div><b>Stay:</b> ${this.escapeHtml(city.stayDuration)}</div>` : ''}
-            ${city.decades ? `<div><b>Decades:</b> ${this.escapeHtml(city.decades)}</div>` : ''}
-
-            ${notes ? `
-                <div style="margin-top: 8px;">
-                    <div style="font-weight: 600; margin-bottom: 4px;">Notes:</div>
-                    <div style="white-space: pre-wrap; text-align: left;">${this.escapeHtml(notes)}</div>
-                </div>
-            ` : ''}
-        </div>
-        `;
-    }
-
 
     private clearMarkers(): void 
     {
@@ -235,15 +220,21 @@ export class GoogleMapComponent  implements AfterViewInit, OnDestroy
         return el;
     }
 
-    private escapeHtml(value: unknown): string 
+    private showMapHintOnce(): void
     {
-        const s = String(value ?? '');
-        return s
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;')
-        .replaceAll('"', '&quot;')
-        .replaceAll("'", '&#039;');
+        this.mapHintService.showOnceIfNeeded('google',
+        {
+            showHint: (message: string): void =>
+            {
+                this.snackBar.open(message, 'Got it',
+                {
+                    duration: 8000,
+                    horizontalPosition: 'center',
+                    verticalPosition: 'top',
+                    panelClass: ['mycities-toast']
+                });
+            }
+        });
     }
 
     ngOnDestroy(): void 

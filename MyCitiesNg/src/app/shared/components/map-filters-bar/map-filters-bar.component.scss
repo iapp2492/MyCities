@@ -1,18 +1,53 @@
-.filters {    
-  display: flex;                 // arrange the three selects in a single row
-  justify-content: flex-start;
-  align-items: center;
-  gap: 10px;                     
-  margin-left: 20px !important;     // required to override Angular Material's default margin on mat-form-field
-  padding: 5px;
-  background-color: rgb(60, 173, 248);   // tiny sliver of background color added to draw attention the filter area
-  border-radius: 5px;
+.filters {
+    display: flex; // arrange the three selects in a single row
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 10px;
+    margin-left: 20px !important; // required to override Angular Material's default margin on mat-form-field
+    padding: 5px;
+    background-color: rgb(60, 173, 248); // tiny sliver of background color added to draw attention the filter area
+    border-radius: 5px;
 }
 
 .filters select {
-  height: 34px;
-  padding: 0 10px;
-  border-radius: 6px;
-  border: 1px solid #cfcfcf;
-  background: white;
+    height: 34px;
+    padding: 0 10px;
+    border-radius: 6px;
+    border: 1px solid #cfcfcf;
+    background: white;
+}
+
+.engine-segment {
+    height: 36px;
+    border-radius: 6px;
+
+    .mat-button-toggle {
+        font-size: 13px;
+        padding: 0 10px;
+        background-color: white;
+    }
+
+    .mat-button-toggle-checked {
+        background-color: #1976d2; // your KTR blue
+        color: white;
+    }
+}
+
+@media (max-width: 768px) {
+    .filters {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+        margin-left: 0 !important;
+    }
+
+    .engine-segment {
+        order: 0;
+        width: 100%;
+    }
+
+    .filters select {
+        width: 100%;
+    }
 }

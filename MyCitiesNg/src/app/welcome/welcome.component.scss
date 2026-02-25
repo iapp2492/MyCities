@@ -136,10 +136,27 @@
 
 .mapChooserButtons {
     margin-top: 14px;
-    display: flex;
-    gap: 56px;
-    flex-wrap: wrap;
-    align-items: center;
+    display: grid;
+    gap: 12px;
+
+    width: 100%;
+    max-width: 520px; // keeps the grid from becoming too wide on desktop
+    justify-items: stretch;
+
+    // Default (desktop): 3 across
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 900px) {
+    .mapChooserButtons {
+        grid-template-columns: 1fr; // stack on phones/tablets
+        max-width: 320px; // optional: make buttons “pill-like”
+    }
+}
+
+/* Make each app-ktr-button fill the grid cell */
+.mapChooserButtons app-ktr-button {
+    width: 100%;
 }
 
 .chooserBtn {
