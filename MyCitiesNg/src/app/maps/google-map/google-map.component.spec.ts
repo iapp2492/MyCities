@@ -367,7 +367,8 @@ describe('GoogleMapComponent', () =>
             lon: 0,
             stayDuration: '',
             decades: '',
-            notes: ''
+            notes: '',
+            photoKey: null
         };
 
         return {

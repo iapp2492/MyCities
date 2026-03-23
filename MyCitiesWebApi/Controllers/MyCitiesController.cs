@@ -2,7 +2,6 @@
 using Microsoft.AspNetCore.Mvc;
 using MyCitiesDataAccess;                 
 using MyCitiesDataAccess.Dtos;
-using MyCitiesWebApi.Testing;
 using Serilog.Context;
 using System.Data.Common;
 
@@ -119,6 +118,25 @@ namespace MyCitiesWebApi.Controllers
                 throw;
             }
         }
+
+        [HttpGet("GetAllPhotos")]
+        [ProducesResponseType(typeof(IReadOnlyList<MyCityPhotosResponseDto>), StatusCodes.Status200OK)]
+        public async Task<ActionResult<IReadOnlyList<MyCityPhotosResponseDto>>> GetAllPhotos()
+        {
+            IReadOnlyList<MyCityPhotosResponseDto> results =
+                await this._myCitiesDataService.GetAllPhotosAsync();
+
+            return this.Ok(results);
+        }
+
+        // Generate a list of cities which have photos (so that the View Photos link only is displayed when photos actually exist)
+        [HttpGet("GetActivePhotoKeys")]
+        public async Task<ActionResult<List<int>>> GetActivePhotoKeys()
+        {
+            List<int> activePhotoKeys = await _myCitiesDataService.GetActivePhotoKeysAsync(); 
+            return Ok(activePhotoKeys);
+        }
+
 
 
         #endregion

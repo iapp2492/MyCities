@@ -254,30 +254,28 @@ describe('LeafletMapComponent', () =>
         expect(component).toBeTruthy();
     });
 
-    it('onDecadeChange should update selectedDecade and call store.setDecadeFilter', () =>
+    it('onDecadeChange should call store.setDecadeFilter', () =>
     {
         component.onDecadeChange('1990s');
 
-        expect(component.selectedDecade).toBe('1990s');
         expect(myCitiesStoreMock.setDecadeFilter).toHaveBeenCalledWith('1990s');
+        
+        myCitiesStoreMock.setDecadeFilter.calls.reset();
 
         component.onDecadeChange(null);
 
-        expect(component.selectedDecade).toBeNull();
-        expect(myCitiesStoreMock.setDecadeFilter).toHaveBeenCalledWith('');
+        expect(myCitiesStoreMock.setDecadeFilter).toHaveBeenCalledWith(null);
     });
 
-    it('onStayChange should update selectedStayDuration and call store.setStayDurationFilter', () =>
+    it('onStayChange should  call store.setStayDurationFilter', () =>
     {
         component.onStayChange('3-5 mos');
 
-        expect(component.selectedStayDuration).toBe('3-5 mos');
         expect(myCitiesStoreMock.setStayDurationFilter).toHaveBeenCalledWith('3-5 mos');
 
         component.onStayChange(null);
 
-        expect(component.selectedStayDuration).toBeNull();
-        expect(myCitiesStoreMock.setStayDurationFilter).toHaveBeenCalledWith('');
+        expect(myCitiesStoreMock.setStayDurationFilter).toHaveBeenCalledWith('null');
     });
 
     it('onBasemapChange should update selectedBasemap and call store.setBasemapMode', () =>
@@ -735,6 +733,7 @@ describe('LeafletMapComponent', () =>
             lon: overrides.lon ?? 0,
             stayDuration: overrides.stayDuration ?? '',
             decades: overrides.decades ?? '',
+            photoKey: null
         };
     }
 

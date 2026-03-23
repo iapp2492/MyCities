@@ -1,14 +1,17 @@
 import { Injectable, inject } from '@angular/core';
-import { BehaviorSubject, Observable, of, combineLatest, throwError } from 'rxjs';
-import { catchError, finalize, shareReplay, tap, map } from 'rxjs';
+import { BehaviorSubject, Observable, of, combineLatest, throwError, forkJoin } from 'rxjs';
+import { catchError, finalize, shareReplay, MonoTypeOperatorFunction, tap, map } from 'rxjs';
 import { MyCityDto } from '../../../models/myCityDto';
 import { MyCitiesApiService } from '../services/my-cities-api.service';
 import { BasemapMode } from '../../../models/basemapMode';
+import { isDevMode } from '@angular/core';
 
 @Injectable({ providedIn: 'root' })
 export class MyCitiesStoreService 
 {
     private api = inject(MyCitiesApiService);
+
+    private activePhotoKeys: Set<number> = new Set<number>();
 
     private readonly _citiesSubject = new BehaviorSubject<MyCityDto[]>([]);
     readonly cities$: Observable<MyCityDto[]> = this._citiesSubject.asObservable();
@@ -35,12 +38,21 @@ export class MyCitiesStoreService
     readonly basemapMode$ = this._basemapModeSubject.asObservable();
 
     readonly filteredCities$ = combineLatest(
-        [
-            this.cities$,
-            this.stayDurationFilter$,
-            this.decadeFilter$
-        ]).pipe(
-            tap(([cities, stay, decade]) => console.log('Combining cities with filters (values):', { citiesCount: cities?.length, stay, decade })),
+                [
+                    this.cities$,
+                    this.stayDurationFilter$,
+                    this.decadeFilter$
+                ])
+                .pipe(this.debugLog<[MyCityDto[] | null, string | null, string | null]>
+            (
+                'Combining cities with filters (values):',
+                ([cities, stay, decade]) =>
+                ({
+                    citiesCount: cities?.length ?? 0,
+                    stay,
+                    decade
+                })
+            ),
             map(([cities, stay, decade]) => 
             {
                 if (!cities) 
@@ -68,11 +80,23 @@ export class MyCitiesStoreService
             shareReplay({ bufferSize: 1, refCount: false })
         );
 
+    
+    private debugLog<T>(label: string, format?: (value: T) => unknown): MonoTypeOperatorFunction<T>
+    {
+        return tap((value: T) =>
+        {
+            if (isDevMode())
+            {
+                console.log(label, format ? format(value) : value);
+            }
+        });
+    }
+        
     private _loadOnce$?: Observable<MyCityDto[]>;
 
-    // Call this from ANY map component. First call hits the API; later calls reuse cached result.  
-    ensureLoaded(): Observable<MyCityDto[]> 
-    {
+    // Call this from ANY map component. First call hits the API; later calls reuse cached result.
+    ensureLoaded(): Observable<MyCityDto[]>
+    {        
         // If we already have cities in memory, return them immediately.
         const existing = this._citiesSubject.value;
         if (existing.length > 0)
@@ -81,7 +105,7 @@ export class MyCitiesStoreService
         }
 
         // If a request is already in-flight / cached, reuse it.
-        if (this._loadOnce$) 
+        if (this._loadOnce$)
         {
             return this._loadOnce$;
         }
@@ -89,35 +113,39 @@ export class MyCitiesStoreService
         this._loadingSubject.next(true);
         this._errorSubject.next(null);
 
-        this._loadOnce$ = this.api.getAllCities().pipe(
-            map(cities => 
+        this._loadOnce$ = forkJoin(
+        {
+            cities: this.api.getAllCities(),
+            activePhotoKeys: this.api.getActivePhotoKeys() 
+        })
+        .pipe(
+            map(({ cities, activePhotoKeys }) =>
             {
                 const valid = cities.filter(c =>
                     this.isValidCoordinate(c.lat) &&
                     this.isValidCoordinate(c.lon)
                 );
+
                 if (valid.length !== cities.length)
                 {
                     console.warn(
                         `Filtered out ${cities.length - valid.length} cities due to invalid coordinates`
                     );
                 }
-                
+
+                this.setActivePhotoKeys(activePhotoKeys);
                 this._citiesSubject.next(valid);
                 this.buildFilterLists(valid);
 
                 return valid;
             }),
-            catchError(err => 
+            catchError(err =>
             {
                 this._errorSubject.next('Failed to load cities');
-                // Reset so a later call can retry
                 this._loadOnce$ = undefined;
                 return throwError(() => err);
             }),
             finalize(() => this._loadingSubject.next(false)),
-
-            // shareReplay makes ALL subscribers share the same HTTP call + cache the last value
             shareReplay({ bufferSize: 1, refCount: false })
         );
 
@@ -128,8 +156,7 @@ export class MyCitiesStoreService
     {
         return Number.isFinite(Number(value));
     }
-
-
+    
     // In case we ever implement a manual refresh button. 
     // This clears the cache and forces a reload on next ensureLoaded() call.   
     refresh(): Observable<MyCityDto[]> 
@@ -137,8 +164,23 @@ export class MyCitiesStoreService
         this._citiesSubject.next([]);
         this._stayDurationsSubject.next([]);
         this._decadesSubject.next([]);
+        this.activePhotoKeys = new Set<number>();
         this._loadOnce$ = undefined;
         return this.ensureLoaded();
+    }
+
+    public setActivePhotoKeys(keys: number[]): void
+    {
+        this.activePhotoKeys = new Set
+        (
+            keys.filter(key => Number.isFinite(key) && key > 0)
+        );
+    }
+
+    public hasPhotos(photoKey: number | null | undefined): boolean
+    {
+        const result = photoKey != null && this.activePhotoKeys.has(photoKey);
+        return result;
     }
 
     setStayDurationFilter(value: string | null): void 

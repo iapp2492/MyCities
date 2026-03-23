@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using DocumentFormat.OpenXml.InkML;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using MyCitiesDataAccess.Contexts;
 using MyCitiesDataAccess.Dtos;
@@ -51,6 +52,50 @@ namespace MyCitiesDataAccess
         }
 
 
+        public async Task<IReadOnlyList<MyCityPhotosResponseDto>> GetAllPhotosAsync()
+        {
+            List<MyCityPhoto> rows = await this._db.MyCityPhotos
+                .AsNoTracking()
+                .OrderBy(p => p.PhotoKey)
+                .ThenBy(p => p.SortOrder)
+                .ThenBy(p => p.PhotoIndex)
+                .ToListAsync();
+
+            List<MyCityPhotosResponseDto> results = rows
+                .GroupBy(p => p.PhotoKey)
+                .Select(g => new MyCityPhotosResponseDto
+                {
+                    PhotoKey = g.Key,
+                    Photos = g.Select(p => new MyCityPhotoDto
+                    {
+                        PhotoKey = p.PhotoKey,
+                        PhotoIndex = p.PhotoIndex,
+                        SortOrder = p.SortOrder,
+                        Title = p.Title,
+                        Caption = p.Caption,
+                        FileName = p.FileName,
+                        Url = $"assets/images/cities/{p.PhotoKey}/{p.FileName}"
+                    })
+                    .ToList()
+                })
+                .ToList();
+
+            return results;
+        }
+
+        public async Task<List<int>> GetActivePhotoKeysAsync()
+        {
+            List<int> activePhotoKeys = await _db.MyCityPhotos
+                .Where(x => x.PhotoKey > 0)
+                .Select(x => x.PhotoKey)
+                .Distinct()
+                .OrderBy(x => x)
+                .ToListAsync();
+
+            return activePhotoKeys;
+        }
+
+
         #endregion
 
         #region Admin
@@ -88,7 +133,8 @@ namespace MyCitiesDataAccess
                 Lon = (double)x.Lon,
                 StayDuration = x.StayDuration,
                 Decades = x.Decades ?? string.Empty,
-                Notes = x.Notes
+                Notes = x.Notes, 
+                PhotoKey = x.PhotoKey
             };
         }
 

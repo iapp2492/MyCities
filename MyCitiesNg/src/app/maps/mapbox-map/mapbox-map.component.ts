@@ -10,11 +10,15 @@ import { MAPBOX_FACTORY } from '../../core/map/mapbox.factory';
 import { MapHintService } from '../../core/services/map-hint.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { CityPopupHtmlService } from '../../core/services/city-popup-html.service';
+import { isDevMode } from '@angular/core';
+import { MatDialog } from '@angular/material/dialog';
+import { PhotoViewerDialogComponent } from '../../photo-viewer/photo-viewer-dialog.component';
+import { CommonModule } from '@angular/common';
 
 @Component({
   selector: 'app-mapbox-map',
   standalone: true,
-  imports: [MapFiltersBarComponent],
+  imports: [CommonModule, MapFiltersBarComponent],
   templateUrl: './mapbox-map.component.html',
   styleUrl: './mapbox-map.component.scss',
 })
@@ -26,6 +30,7 @@ export class MapboxMapComponent implements AfterViewInit, OnDestroy
     private readonly mapHintService = inject(MapHintService);
     private readonly snackBar = inject(MatSnackBar);
     private readonly popupHtml = inject(CityPopupHtmlService);
+    private readonly dialog = inject(MatDialog);
 
     private map?: mapboxgl.Map;
     private markers: mapboxgl.Marker[] = [];
@@ -53,21 +58,18 @@ export class MapboxMapComponent implements AfterViewInit, OnDestroy
         { value: 'navNight', label: 'Navigation Night' }
     ];
 
-
-    selectedDecade: string | null = null;
-    selectedStayDuration: string | null = null;
     selectedBasemap: string | null = 'standard';
+    readonly selectedStayDuration$ = this.citiesStore.stayDurationFilter$;
+    readonly selectedDecade$ = this.citiesStore.decadeFilter$;
 
     onDecadeChange(value: string | null): void 
     {
-        this.selectedDecade = value;
-        this.citiesStore.setDecadeFilter(value ?? '');
+        this.citiesStore.setDecadeFilter(value);
     }
 
     onStayChange(value: string | null): void 
     {
-        this.selectedStayDuration = value;
-        this.citiesStore.setStayDurationFilter(value ?? '');
+        this.citiesStore.setStayDurationFilter(value);
     }    
 
     ngAfterViewInit(): void 
@@ -81,11 +83,10 @@ export class MapboxMapComponent implements AfterViewInit, OnDestroy
             error: () => this.initMapOnce() // still init; we just have no markers
         });
 
-
         // 2) Render markers based on filteredCities$ (filters affect map automatically)
         this.citiesStore.filteredCities$
         .pipe(
-            tap((cities: MyCityDto[] | null) => console.log('filteredCities$ emitted:', cities)),
+            this.debugLog<MyCityDto[] | null>('filteredCities$ emitted:'),
             takeUntilDestroyed(this.destroyRef),
             filter((cities): cities is MyCityDto[] => Array.isArray(cities))
         )
@@ -97,6 +98,17 @@ export class MapboxMapComponent implements AfterViewInit, OnDestroy
                 return;
             }
             this.renderMarkers(cities);
+        });
+    }
+
+    private debugLog<T>(label: string)
+    {
+        return tap<T>(value =>
+        {
+            if (isDevMode())
+            {
+                console.log(label, value);
+            }
         });
     }
 
@@ -237,19 +249,69 @@ export class MapboxMapComponent implements AfterViewInit, OnDestroy
             // Skip bad coordinates BEFORE doing anything else
             if (!Number.isFinite(lat) || !Number.isFinite(lon))
             {
-                console.warn('Skipping city with invalid coordinates:', city);
+                // Available for debugging: console.log('Skipping city with invalid coordinates: ' + city);
                 continue;
             }
 
             const el = this.createMarkerElement();
 
-            const popupHtml = this.popupHtml.build(city);
+            const hasPhotos = this.citiesStore.hasPhotos(city.photoKey);
+            // Available for debugging: console.log(`City "${city.city}" hasPhotos=${hasPhotos}`); // Debug log to verify photo availability
+            const popupHtml = this.popupHtml.build(city, hasPhotos);
 
             const popup = this.mapbox.createPopup(
             {
-                offset: [0, 18]
+                offset: [0, 18],
+                maxWidth: '360px'   
             })
-            .setHTML(popupHtml);            
+            .setHTML(popupHtml);
+
+            popup.on('open', () =>
+            {
+                const popupEl = popup.getElement();
+                if (!popupEl)
+                {
+                    return;
+                }
+
+                const link = popupEl.querySelector<HTMLAnchorElement>('a.js-view-photos');
+                if (!link)
+                {
+                    return;
+                }
+
+                link.onclick = (evt: MouseEvent) =>
+                {
+                    evt.preventDefault();
+                    evt.stopPropagation();
+
+                    const raw = link.getAttribute('data-photo-key');
+                    const photoKey = Number(raw);
+
+                    if (!Number.isFinite(photoKey) || photoKey <= 0)
+                    {
+                        if (isDevMode())
+                        {
+                            console.warn('Invalid photo key in popup:', raw);
+                        }
+                        return;
+                    }
+
+                    this.dialog.open(PhotoViewerDialogComponent,
+                    {
+                        data: { photoKey },
+                        autoFocus: false,
+                        restoreFocus: false,
+                        closeOnNavigation: true,
+                        hasBackdrop: true,
+                        width: 'min(1100px, 92vw)',
+                        height: 'min(780px, 88vh)',
+                        maxWidth: '92vw',
+                        maxHeight: '88vh',
+                        panelClass: 'photo-viewer-dialog'
+                    });
+                };
+            });         
 
            const marker = this.mapbox.createMarker(
             {

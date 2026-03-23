@@ -25,6 +25,7 @@ function city(overrides: Partial<MyCityDto> & { city: string }): MyCityDto
         lon: overrides.lon ?? 0,
         stayDuration: overrides.stayDuration ?? '',
         decades: overrides.decades ?? '',
+        photoKey: overrides.photoKey ?? null,
     };
 }
 
@@ -483,6 +484,7 @@ describe('MyCitiesStoreService', () =>
             lon: 2,
             stayDuration: '1 mo',
             decades: '1990s',
+            photoKey: null,
         };
 
         // IMPORTANT: do NOT use city() helper here, because it converts undefined/null to ''

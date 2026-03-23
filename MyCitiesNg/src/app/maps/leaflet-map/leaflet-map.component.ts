@@ -1,4 +1,4 @@
-import { AfterViewInit, Component, inject, DestroyRef, OnDestroy } from '@angular/core';
+import { AfterViewInit, Component, inject, DestroyRef, OnDestroy, isDevMode } from '@angular/core';
 import * as L from 'leaflet';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MyCitiesStoreService } from '../../core/services/my-cities-store.service';
@@ -9,6 +9,10 @@ import { MapFiltersBarComponent, BasemapOption } from '../../shared/components/m
 import { MapHintService } from '../../core/services/map-hint.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { CityPopupHtmlService } from '../../core/services/city-popup-html.service';
+import { Router } from '@angular/router';
+import { MatDialog } from '@angular/material/dialog';
+import { PhotoViewerDialogComponent } from '../../photo-viewer/photo-viewer-dialog.component';
+import { tap } from 'rxjs';
 
 @Component({
     selector: 'app-leaflet-map',
@@ -23,6 +27,8 @@ export class LeafletMapComponent implements AfterViewInit, OnDestroy
     private citiesStore = inject(MyCitiesStoreService);
     private readonly snackBar = inject(MatSnackBar);
     private readonly popupHtml = inject(CityPopupHtmlService);
+    private readonly router = inject(Router);
+    private readonly dialog = inject(MatDialog);
 
     private map?: L.Map;
     private markerLayer = L.layerGroup();
@@ -35,6 +41,8 @@ export class LeafletMapComponent implements AfterViewInit, OnDestroy
 
     stayDurations$ = this.citiesStore.stayDurations$;
     decades$ = this.citiesStore.decades$;
+    readonly selectedStayDuration$ = this.citiesStore.stayDurationFilter$;
+    readonly selectedDecade$ = this.citiesStore.decadeFilter$;
 
     basemaps: BasemapOption[] =
         [
@@ -46,20 +54,16 @@ export class LeafletMapComponent implements AfterViewInit, OnDestroy
             { value: 'wikimedia', label: 'Wikimedia' },
         ];
 
-    selectedDecade: string | null = null;
-    selectedStayDuration: string | null = null;
     selectedBasemap: string | null = 'standard';
 
     onDecadeChange(value: string | null): void 
-    {   
-        this.selectedDecade = value;
-        this.citiesStore.setDecadeFilter(value ?? '');
+    {  
+        this.citiesStore.setDecadeFilter(value);
     }
 
     onStayChange(value: string | null): void 
     {
-        this.selectedStayDuration = value;
-        this.citiesStore.setStayDurationFilter(value ?? '');
+        this.citiesStore.setStayDurationFilter(value);
     }
 
     // Unlike the other two filters, there will always be a valid basemap (never null) 
@@ -166,7 +170,9 @@ export class LeafletMapComponent implements AfterViewInit, OnDestroy
                 console.warn(`Skipped ${skipped} cities due to invalid coordinates`);
             }
 
-            const popupHtml =this.popupHtml.build(city);
+            const hasPhotos = this.citiesStore.hasPhotos(city.photoKey);
+            // Available for debugging: console.log(`City "${city.city}" hasPhotos=${hasPhotos}`); // Debug log to verify photo availability
+            const popupHtml = this.popupHtml.build(city, hasPhotos);
 
             const marker = L.marker(
                 [lat, lon],
@@ -180,6 +186,58 @@ export class LeafletMapComponent implements AfterViewInit, OnDestroy
             marker.on('mouseover', () => marker.setOpacity(1));
             marker.on('mouseout', () => marker.setOpacity(this.MARKER_OPACITY));
 
+            marker.on('popupopen', (e: L.PopupEvent) =>
+            {
+                // popup element (root DOM node of the popup content)
+                const popupEl = e.popup.getElement();
+                if (!popupEl)
+                {
+                    return;
+                }
+
+                const link = popupEl.querySelector<HTMLAnchorElement>('a.js-view-photos');
+                if (!link)
+                {
+                    return;
+                }
+
+                // Avoid duplicate handlers if Leaflet reuses DOM / opens multiple times
+                link.onclick = (evt: MouseEvent) =>
+                {
+                    evt.preventDefault();
+                    evt.stopPropagation();
+
+                    const raw = link.getAttribute('data-photo-key');
+                    const photoKey = Number(raw);
+
+                    if (!Number.isFinite(photoKey) || photoKey <= 0)
+                    {
+                        console.warn('Invalid photo key in popup:', raw);
+                        return;
+                    }
+
+                    // Available for debugging console.log('Opening photo dialog for key', photoKey);
+                    
+                    this.dialog.open(PhotoViewerDialogComponent,
+                    {
+                        data: { photoKey },
+                        autoFocus: false,
+                        restoreFocus: false,
+                        closeOnNavigation: true,
+                        hasBackdrop: true,
+
+                        // Try this first; easy to adjust
+                        width: 'min(1100px, 92vw)',
+                        height: 'min(780px, 88vh)',
+                        maxWidth: '92vw',
+                        maxHeight: '88vh',
+
+                        panelClass: 'photo-viewer-dialog'
+                    });
+                };
+
+            });
+
             marker
                 .bindTooltip(this.escapeHtml(city.city), {
                     permanent: true,
@@ -188,7 +246,12 @@ export class LeafletMapComponent implements AfterViewInit, OnDestroy
                     opacity: 0.95,
                     className: 'city-tooltip'
                 })
-                .bindPopup(popupHtml);
+                .bindPopup(popupHtml,
+                {
+                    maxWidth: 340,
+                    minWidth: 300,
+                    className: 'mycities-popup'
+                });
 
             marker.addTo(this.markerLayer);
 
@@ -206,7 +269,7 @@ export class LeafletMapComponent implements AfterViewInit, OnDestroy
         this.citiesStore.ensureLoaded()
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe({ error: err => console.error('Failed to load cities', err) });
-
+       
         // Reactively redraw whenever filters change
         this.citiesStore.filteredCities$
             .pipe(takeUntilDestroyed(this.destroyRef))
@@ -317,6 +380,17 @@ export class LeafletMapComponent implements AfterViewInit, OnDestroy
         };
 
     };
+    
+    private debugLog<T>(label: string)
+    {
+        return tap<T>(value =>
+        {
+            if (isDevMode())
+            {
+                console.log(label, value);
+            }
+        });
+    }
 
     ngOnDestroy(): void 
     {

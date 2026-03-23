@@ -1,4 +1,4 @@
-import { AfterViewInit, Component, DestroyRef, inject, OnDestroy } from '@angular/core';
+import { AfterViewInit, Component, DestroyRef, inject, isDevMode, OnDestroy } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { filter, tap } from 'rxjs';
 import { GoogleMapsLoaderService } from '../../core/services/google-maps-loader.service';
@@ -10,12 +10,15 @@ import { environment } from '../../../environments/environment';
 import { MapHintService } from '../../core/services/map-hint.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { CityPopupHtmlService } from '../../core/services/city-popup-html.service';
+import { MatDialog } from '@angular/material/dialog';
+import { PhotoViewerDialogComponent } from '../../photo-viewer/photo-viewer-dialog.component';
+import { CommonModule } from '@angular/common';
 
 
 @Component({
   selector: 'app-google-map',
   standalone: true,
-  imports: [MapFiltersBarComponent],
+  imports: [CommonModule, MapFiltersBarComponent],
   templateUrl: './google-map.component.html',
   styleUrl: './google-map.component.scss',
 })
@@ -27,6 +30,7 @@ export class GoogleMapComponent  implements AfterViewInit, OnDestroy
     private readonly mapHintService = inject(MapHintService);
     private readonly snackBar = inject(MatSnackBar);
     private readonly popupHtml = inject(CityPopupHtmlService);
+    private readonly dialog = inject(MatDialog);
 
     private map?: google.maps.Map;
     private markers: google.maps.marker.AdvancedMarkerElement[] = [];
@@ -45,20 +49,18 @@ export class GoogleMapComponent  implements AfterViewInit, OnDestroy
         { value: 'hybrid', label: 'Hybrid' }
     ];
 
-    selectedDecade: string | null = null;
-    selectedStayDuration: string | null = null;
     selectedBasemap: string | null = 'roadmap';
+    readonly selectedStayDuration$ = this.citiesStore.stayDurationFilter$;
+    readonly selectedDecade$ = this.citiesStore.decadeFilter$;
 
     onDecadeChange(value: string | null): void 
     {
-        this.selectedDecade = value;
-        this.citiesStore.setDecadeFilter(value ?? '');
+        this.citiesStore.setDecadeFilter(value);
     }
 
     onStayChange(value: string | null): void 
     {
-        this.selectedStayDuration = value;
-        this.citiesStore.setStayDurationFilter(value ?? '');
+        this.citiesStore.setStayDurationFilter(value);
     }
 
     // Unlike the other two filters, there will always be a valid basemap (never null) 
@@ -89,11 +91,11 @@ export class GoogleMapComponent  implements AfterViewInit, OnDestroy
             await this.initMapOnce(); 
             } // still init; you'll just have no markers
         });
-
+       
         // 2) Render markers based on filteredCities$ (filters affect map automatically)
         this.citiesStore.filteredCities$
         .pipe(
-            tap((cities: MyCityDto[] | null) => console.log('filteredCities$ emitted:', cities)),
+            this.debugLog<MyCityDto[] | null>('filteredCities$ emitted:'),
             takeUntilDestroyed(this.destroyRef),
             filter((cities): cities is MyCityDto[] => Array.isArray(cities))
         )
@@ -105,6 +107,17 @@ export class GoogleMapComponent  implements AfterViewInit, OnDestroy
                 return;
             }
             this.renderMarkers(cities);
+        });
+    }
+    
+    private debugLog<T>(label: string)
+    {
+        return tap<T>(value =>
+        {
+            if (isDevMode())
+            {
+                console.log(label, value);
+            }
         });
     }
 
@@ -132,6 +145,11 @@ export class GoogleMapComponent  implements AfterViewInit, OnDestroy
 
         this.infoWindow = new google.maps.InfoWindow();
 
+        this.infoWindow.addListener('domready', () =>
+        {
+            this.attachPopupHandlers();
+        });
+
         google.maps.event.addListenerOnce(this.map, 'idle', () =>
         {
             this.showMapHintOnce();
@@ -142,10 +160,62 @@ export class GoogleMapComponent  implements AfterViewInit, OnDestroy
             this.renderMarkers(this.latestCities);
         }      
     }
+
+    private attachPopupHandlers(): void
+    {
+        const infoWindowContainer = document.querySelector('.gm-style-iw') as HTMLElement | null;
+
+        if (!infoWindowContainer)
+        {
+            return;
+        }
+
+        const photoLink = infoWindowContainer.querySelector('.js-view-photos') as HTMLAnchorElement | null;
+
+        if (!photoLink)
+        {
+            return;
+        }
+
+        photoLink.addEventListener('click', (event: Event) =>
+        {
+            event.preventDefault();
+            event.stopPropagation();
+
+            const photoKey = photoLink.getAttribute('data-photo-key');
+
+            if (!photoKey)
+            {
+                return;
+            }
+
+            this.openPhotoViewer(photoKey);
+        });
+    }
     
+    private openPhotoViewer(photoKey: string): void
+    {
+        if (isDevMode())
+        {
+            console.log(`Opening photo dialog for photoKey: ${photoKey}`);
+        }
+
+        this.dialog.open(PhotoViewerDialogComponent,
+        {
+            data:
+            {
+                photoKey
+            },
+            maxWidth: '95vw',
+            width: '1200px',
+            height: '90vh',
+            panelClass: 'photo-viewer-dialog'
+        });
+    }
+        
     private renderMarkers(cities: MyCityDto[]): void 
     {
-        console.log('Rendering markers for cities in the renderMarkers method:', cities);
+        // Available for debugging: console.log('Rendering markers for cities in the renderMarkers method:', cities);
         if (!this.map) 
         {
             return;
@@ -175,14 +245,15 @@ export class GoogleMapComponent  implements AfterViewInit, OnDestroy
                 content,
             });
 
-            marker.addListener('click', () => 
+            marker.addEventListener('gmp-click', () => 
             {
-                const html = this.popupHtml.build(city);
+                const hasPhotos = this.citiesStore.hasPhotos(city.photoKey);
+                const html = this.popupHtml.build(city, hasPhotos);
                 this.infoWindow?.setContent(html);
                 this.infoWindow?.open({ map: this.map!, anchor: marker });
             });
 
-            console.log(`Placing marker for ${city.city} at (${city.lat}, ${city.lon})`);
+            // Available for debugging: console.log(`Placing marker for ${city.city} at (${city.lat}, ${city.lon})`);
 
             this.markers.push(marker);
                 bounds.extend({ lat: city.lat, lng: city.lon });

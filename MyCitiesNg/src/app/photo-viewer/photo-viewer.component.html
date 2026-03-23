@@ -1,0 +1,59 @@
+<div class="viewer">
+
+    @if (!isDialog) 
+    {
+        <header class="topbar">
+            <div class="title">{{ title }}</div>
+            <!-- Optional: add a "Back" button later -->
+        </header>
+    }
+
+    <main class="stage">
+        
+        <swiper-container
+            #swiperEl
+            class="swiper"
+            init="false"
+            (swiperslidechange)="onSwiperSlideChange($event)"
+            (slidechange)="onSlideChange($event)"
+        >
+            
+        @for (p of photos; track p.src; let i = $index)
+        {
+            <swiper-slide>
+                <figure class="slide">
+                    <div class="photo-wrap">
+                        <img class="photo" [src]="p.src" [alt]="p.alt" loading="eager" />
+                    </div>
+                </figure>
+            </swiper-slide>
+        }
+        </swiper-container>
+        <div class="caption swiper-no-swiping">
+            <div class="caption-row">
+                <span class="index">{{ currentIndex + 1 }} / {{ photos.length }}</span>
+
+                <span
+                    #captionEl
+                    class="caption-text"
+                    [class.is-expanded]="isCaptionExpanded"
+                >
+                    {{ photos[currentIndex]?.caption ?? '' }}
+                </span>
+            </div>
+
+            @if (activeCaptionOverflows && !isCaptionExpanded)
+            {
+                <button type="button" class="caption-toggle" (click)="expandCaption()">
+                    Read more
+                </button>
+            }
+            @else if (isCaptionExpanded)
+            {
+                <button type="button" class="caption-toggle" (click)="collapseCaption()">
+                    Show less
+                </button>
+            }
+        </div>
+    </main>
+</div>

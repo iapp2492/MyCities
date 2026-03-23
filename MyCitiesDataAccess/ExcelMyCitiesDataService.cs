@@ -1,6 +1,7 @@
 ﻿using ClosedXML.Excel;
 using Microsoft.Extensions.Logging;
 using MyCitiesDataAccess.Dtos;
+using MyCitiesDataAccess.Models;
 using System.Diagnostics;
 using System.Globalization;
 
@@ -278,6 +279,17 @@ namespace MyCitiesDataAccess
         }
 
 
+
+        public Task<IReadOnlyList<MyCityPhotosResponseDto>> GetAllPhotosAsync()
+        {
+            throw new NotImplementedException();
+        }
+
+
+        public Task<List<int>> GetActivePhotoKeysAsync()
+        {
+            throw new NotImplementedException();
+        }
 
         #endregion
 

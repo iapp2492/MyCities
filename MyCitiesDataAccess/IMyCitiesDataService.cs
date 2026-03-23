@@ -10,6 +10,10 @@ namespace MyCitiesDataAccess
         Task ReloadAsync(); // call this after any in-session updates to the Excel file
         Task<MyCityDto?> GetCityByIdAsync(int id);
 
+        Task<IReadOnlyList<MyCityPhotosResponseDto>> GetAllPhotosAsync();
+
+        Task<List<int>> GetActivePhotoKeysAsync();
+
         #endregion
 
         #region Admin

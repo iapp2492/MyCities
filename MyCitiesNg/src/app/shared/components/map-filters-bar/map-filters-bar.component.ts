@@ -4,6 +4,7 @@ import { ActivatedRoute, NavigationEnd, Router } from '@angular/router';
 import { filter, Observable } from 'rxjs';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { FormsModule } from '@angular/forms';
 
 export interface BasemapOption {
   value: string;
@@ -15,7 +16,7 @@ type MapEngine = 'leaflet' | 'mapbox' | 'google';
 @Component({
   selector: 'app-map-filters-bar',
   standalone: true,
-  imports: [CommonModule, MatButtonToggleModule],
+  imports: [CommonModule, FormsModule, MatButtonToggleModule],
   templateUrl: './map-filters-bar.component.html',
   styleUrl: './map-filters-bar.component.scss',
 })
@@ -59,31 +60,7 @@ export class MapFiltersBarComponent
         // Initialize immediately (first render)
         this.currentEngine = this.getEngineFromUrl(this.router.url);
     }
-
-   onDecadeSelectChange(target: EventTarget | null): void 
-   {
-        const select = target as HTMLSelectElement | null;
-        if (!select) 
-        {
-            return;
-        }
-
-        const value = select.value;
-        this.decadeChange.emit(value === '' ? null : value);
-    }
-
-    onStayDurationSelectChange(target: EventTarget | null): void 
-    {
-        const select = target as HTMLSelectElement | null;
-        if (!select) 
-        {
-            return;
-        }
-
-        const value = select.value;
-        this.stayDurationChange.emit(value === '' ? null : value);
-    }
-
+    
     onBasemapSelectChange(target: EventTarget | null): void 
     {
         const select = target as HTMLSelectElement | null;

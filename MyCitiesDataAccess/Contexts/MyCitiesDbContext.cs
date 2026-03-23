@@ -18,6 +18,8 @@ public partial class MyCitiesDbContext : DbContext
 
     public virtual DbSet<MyCityDecade> MyCityDecades { get; set; }
 
+    public DbSet<MyCityPhoto> MyCityPhotos { get; set; } = null!;
+
     public virtual DbSet<Region> Regions { get; set; }
 
     public virtual DbSet<StayDuration> StayDurations { get; set; }
@@ -53,6 +55,9 @@ public partial class MyCitiesDbContext : DbContext
             entity.HasOne(d => d.StayDuration).WithMany(p => p.MyCities)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_MyCity_StayDuration");
+
+            entity.HasAlternateKey(e => e.PhotoKey)
+                .HasName("AK_MyCity_PhotoKey");
         });
 
         modelBuilder.Entity<MyCityDecade>(entity =>
@@ -62,6 +67,40 @@ public partial class MyCitiesDbContext : DbContext
                 .HasConstraintName("FK_MyCityDecade_Decade");
 
             entity.HasOne(d => d.MyCity).WithMany(p => p.MyCityDecades).HasConstraintName("FK_MyCityDecade_MyCity");
+        });
+
+        modelBuilder.Entity<MyCityPhoto>(entity =>
+        {
+            entity.ToTable("MyCityPhoto", "dbo");
+
+            entity.HasKey(e => e.MyCityPhotoId);
+
+            entity.Property(e => e.PhotoKey)
+                .IsRequired();
+
+            entity.Property(e => e.PhotoIndex)
+                .IsRequired();
+
+            entity.Property(e => e.SortOrder)
+                .IsRequired();
+
+            entity.Property(e => e.Title)
+                .IsRequired()
+                .HasMaxLength(200);
+
+            entity.Property(e => e.Caption)
+                .IsRequired()
+                .HasMaxLength(400);
+
+            entity.Property(e => e.FileName)
+                .IsRequired()
+                .HasMaxLength(260);
+
+            entity.HasOne(d => d.MyCity).WithMany(p => p.MyCityPhotos)
+                .HasForeignKey(d => d.PhotoKey)
+                .HasPrincipalKey(p => p.PhotoKey)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_MyCityPhoto_PhotoKey");
         });
 
         modelBuilder.Entity<StayDuration>(entity =>

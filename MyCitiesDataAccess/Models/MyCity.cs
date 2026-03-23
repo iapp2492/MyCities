@@ -32,6 +32,10 @@ public partial class MyCity
 
     public string? Notes { get; set; }
 
+    public int PhotoKey { get; set; }
+
+    public ICollection<MyCityPhoto> MyCityPhotos { get; set; } = new List<MyCityPhoto>();
+
     [ForeignKey("CountryId")]
     [InverseProperty("MyCities")]
     public virtual Country Country { get; set; } = null!;

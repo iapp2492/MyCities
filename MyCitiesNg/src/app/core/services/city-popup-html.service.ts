@@ -4,7 +4,7 @@ import { MyCityDto } from '../../../models/myCityDto';
 @Injectable({ providedIn: 'root' })
 export class CityPopupHtmlService
 {
-    public build(city: MyCityDto): string
+    public build(city: MyCityDto, hasPhotos: boolean): string
     {
         const notes = city.notes?.trim();
         const hasNotes = Boolean(notes);
@@ -16,7 +16,7 @@ export class CityPopupHtmlService
         const hasDecades = Boolean(decades);
 
         return `
-            <div style="font-size: 13px; line-height: 1.35; max-width: 320px;">
+            <div style="font-size: 13px; line-height: 1.35;">
                 <div style="font-weight: 700; margin-bottom: 6px;">
                     ${this.escapeHtml(city.city)}
                 </div>
@@ -28,7 +28,18 @@ export class CityPopupHtmlService
                 ${hasNotes ? `
                     <div style="margin-top: 8px;">
                         <div style="font-weight: 600; margin-bottom: 4px;">Notes:</div>
-                        <div style="white-space: pre-wrap; text-align: left;">${this.escapeHtml(notes)}</div>
+                        <div style="white-space: pre-wrap; text-align: left; overflow-wrap: break-word;">${this.escapeHtml(notes)}</div>
+                    </div>
+                ` : ''}
+
+                ${hasPhotos ? `
+                    <div style="margin-top: 8px;">
+                        <a href="#"
+                        class="js-view-photos"
+                        data-photo-key="${city.photoKey}"
+                        style="text-decoration: underline; font-weight: 600;">
+                        View photos
+                        </a>
                     </div>
                 ` : ''}
             </div>

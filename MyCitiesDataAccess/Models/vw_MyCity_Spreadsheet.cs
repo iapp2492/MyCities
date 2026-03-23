@@ -28,4 +28,6 @@ public partial class vw_MyCity_Spreadsheet
     public string? Decades { get; set; }
 
     public string? Notes { get; set; }
+
+    public int PhotoKey { get; set; }
 }

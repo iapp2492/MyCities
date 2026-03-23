@@ -3,6 +3,7 @@ import { WelcomeComponent } from './welcome/welcome.component';
 import { LeafletMapComponent } from './maps/leaflet-map/leaflet-map.component';
 import { GoogleMapComponent } from './maps/google-map/google-map.component';
 import { MapboxMapComponent } from './maps/mapbox-map/mapbox-map.component';
+import { PhotoViewerComponent } from './photo-viewer/photo-viewer.component';
 
 export const routes: Routes = [
   {
@@ -20,6 +21,10 @@ export const routes: Routes = [
   {
     path: 'map/mapbox',
     component: MapboxMapComponent
+  },
+  {
+    path: 'photo-viewer',
+    component: PhotoViewerComponent
   },
 
   {

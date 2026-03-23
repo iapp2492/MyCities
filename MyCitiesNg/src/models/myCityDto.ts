@@ -8,4 +8,5 @@ export interface MyCityDto {
     stayDuration: string;
     decades: string;
     notes: string | null;
+    photoKey: number | null;
 }

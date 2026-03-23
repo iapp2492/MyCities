@@ -7,6 +7,9 @@
 @use './styles/_mycities-themes' as ktr;
 @use './styles/styles_theme-colors' as themeColors;
 @import 'mapbox-gl/dist/mapbox-gl.css';
+@import 'swiper/css';
+@import 'swiper/css/navigation';
+@import 'swiper/css/pagination';
 
 
 @include mat.core();
@@ -109,4 +112,13 @@ body {
 body {
     margin: 0;
     font-family: Roboto, "Helvetica Neue", sans-serif;
+}
+
+.photo-viewer-dialog .mat-mdc-dialog-container {
+    padding: 0;
+}
+
+.photo-viewer-dialog .mdc-dialog__surface {
+    overflow: hidden;
+    border-radius: 12px;
 }

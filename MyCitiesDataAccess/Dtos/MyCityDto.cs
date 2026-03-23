@@ -17,5 +17,7 @@ namespace MyCitiesDataAccess.Dtos
         [Required] public string Decades { get; set; } = string.Empty;
 
         public string? Notes { get; set; } 
+
+        public int PhotoKey { get; set; }
     }
 }
