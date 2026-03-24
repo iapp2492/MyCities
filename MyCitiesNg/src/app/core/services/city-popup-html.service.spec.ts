@@ -23,13 +23,13 @@ describe('CityPopupHtmlService', () =>
             country: `a&b<c>d"e'f`,
             stayDuration: `a&b<c>d"e'f`,
             decades: `a&b<c>d"e'f`,
-            notes: `a&b<c>d"e'f`
+            notes: `a&b<c>d"e'f`,
+            photoKey: null
         } as unknown as MyCityDto;
 
-        const html = service.build(city);
+        const html = service.build(city, false);
 
         expect(html).toContain('a&amp;b&lt;c&gt;d&quot;e&#039;f');
-        // Optional: ensure the raw string is NOT present
         expect(html).not.toContain(`a&b<c>d"e'f`);
     });
 
@@ -38,10 +38,11 @@ describe('CityPopupHtmlService', () =>
         const city = {
             city: 'X',
             country: 'Y',
-            notes: '   '
+            notes: '   ',
+            photoKey: null
         } as unknown as MyCityDto;
 
-        const html = service.build(city);
+        const html = service.build(city, false);
 
         expect(html).not.toContain('Notes:');
     });
@@ -60,10 +61,11 @@ describe('CityPopupHtmlService', () =>
                 lat: 0,
                 lon: 0,
                 stayDuration: '',
-                decades: ''
+                decades: '',
+                photoKey: null
             };
 
-            const html = service.build(city);
+            const html = service.build(city, false);
 
             expect(html).toContain('Notes:');
             expect(html).toContain('Hello world');
@@ -82,10 +84,11 @@ describe('CityPopupHtmlService', () =>
                 lat: 0,
                 lon: 0,
                 stayDuration: '',
-                decades: ''
+                decades: '',
+                photoKey: null
             };
 
-            const html = service.build(city);
+            const html = service.build(city, false);
 
             expect(html).not.toContain('Notes:');
             expect(html).not.toContain('white-space: pre-wrap');
@@ -103,10 +106,11 @@ describe('CityPopupHtmlService', () =>
                 lat: 0,
                 lon: 0,
                 stayDuration: '',
-                decades: ''
+                decades: '',
+                photoKey: null
             };
 
-            const html = service.build(city);
+            const html = service.build(city, false);
 
             expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
             expect(html).toContain('A&amp;B');
@@ -125,16 +129,17 @@ describe('CityPopupHtmlService', () =>
                 lat: 0,
                 lon: 0,
                 stayDuration: '2 years',
-                decades: '1990s'
+                decades: '1990s',
+                photoKey: null
             };
 
-            const html = service.build(city);
+            const html = service.build(city, false);
 
             expect(html).toContain('Stay:');
             expect(html).toContain('2 years');
             expect(html).toContain('Decades:');
             expect(html).toContain('1990s');
-        }); 
+        });
 
         it('omits Stay and Decades blocks when values are blank', () =>
         {
@@ -148,15 +153,16 @@ describe('CityPopupHtmlService', () =>
                 lat: 0,
                 lon: 0,
                 stayDuration: '   ',
-                decades: ''
+                decades: '',
+                photoKey: null
             };
 
-            const html = service.build(city);
+            const html = service.build(city, false);
 
             expect(html).not.toContain('Stay:');
             expect(html).not.toContain('Decades:');
-        });   
-        
+        });
+
         it('build should handle null/undefined values (covers value ?? "")', () =>
         {
             const city =
@@ -165,23 +171,63 @@ describe('CityPopupHtmlService', () =>
                 country: null,
                 stayDuration: undefined,
                 decades: null,
-                notes: undefined
+                notes: undefined,
+                photoKey: null
             } as unknown as MyCityDto;
 
-            const html = service.build(city);
+            const html = service.build(city, false);
 
-            // City title is present but empty
             expect(html).toContain('<div style="font-weight: 700; margin-bottom: 6px;">');
             expect(html).toContain('</div>');
-
-            // Country label still renders, but value is empty
             expect(html).toContain('<div><b>Country:</b> </div>');
-
-            // Optional blocks should be omitted because trim() never produces content
             expect(html).not.toContain('Stay:');
             expect(html).not.toContain('Decades:');
             expect(html).not.toContain('Notes:');
         });
 
+        it('includes View photos link when hasPhotos is true', () =>
+        {
+            const city: MyCityDto =
+            {
+                id: 20,
+                city: 'Photo City',
+                country: 'Photo Country',
+                region: '',
+                notes: '',
+                lat: 0,
+                lon: 0,
+                stayDuration: '',
+                decades: '',
+                photoKey: 123
+            };
+
+            const html = service.build(city, true);
+
+            expect(html).toContain('View photos');
+            expect(html).toContain('class="js-view-photos"');
+            expect(html).toContain('data-photo-key="123"');
+        });
+
+        it('omits View photos link when hasPhotos is false', () =>
+        {
+            const city: MyCityDto =
+            {
+                id: 21,
+                city: 'No Photo City',
+                country: 'No Photo Country',
+                region: '',
+                notes: '',
+                lat: 0,
+                lon: 0,
+                stayDuration: '',
+                decades: '',
+                photoKey: 123
+            };
+
+            const html = service.build(city, false);
+
+            expect(html).not.toContain('View photos');
+            expect(html).not.toContain('js-view-photos');
+        });
     });
 });

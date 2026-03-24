@@ -1,15 +1,16 @@
 import { Injectable, inject } from '@angular/core';
 import { BehaviorSubject, Observable, of, combineLatest, throwError, forkJoin } from 'rxjs';
-import { catchError, finalize, shareReplay, MonoTypeOperatorFunction, tap, map } from 'rxjs';
+import { catchError, finalize, shareReplay, map } from 'rxjs';
 import { MyCityDto } from '../../../models/myCityDto';
 import { MyCitiesApiService } from '../services/my-cities-api.service';
 import { BasemapMode } from '../../../models/basemapMode';
-import { isDevMode } from '@angular/core';
+import { DebugLoggerService } from './debug-logger.service';
 
 @Injectable({ providedIn: 'root' })
 export class MyCitiesStoreService 
 {
     private api = inject(MyCitiesApiService);
+    private readonly debugLogger = inject(DebugLoggerService);
 
     private activePhotoKeys: Set<number> = new Set<number>();
 
@@ -43,7 +44,7 @@ export class MyCitiesStoreService
                     this.stayDurationFilter$,
                     this.decadeFilter$
                 ])
-                .pipe(this.debugLog<[MyCityDto[] | null, string | null, string | null]>
+                .pipe(this.debugLogger.debugTap<[MyCityDto[] | null, string | null, string | null]>
             (
                 'Combining cities with filters (values):',
                 ([cities, stay, decade]) =>
@@ -79,18 +80,6 @@ export class MyCitiesStoreService
             }),
             shareReplay({ bufferSize: 1, refCount: false })
         );
-
-    
-    private debugLog<T>(label: string, format?: (value: T) => unknown): MonoTypeOperatorFunction<T>
-    {
-        return tap((value: T) =>
-        {
-            if (isDevMode())
-            {
-                console.log(label, format ? format(value) : value);
-            }
-        });
-    }
         
     private _loadOnce$?: Observable<MyCityDto[]>;
 
@@ -128,7 +117,7 @@ export class MyCitiesStoreService
 
                 if (valid.length !== cities.length)
                 {
-                    console.warn(
+                    this.debugLogger.warn(
                         `Filtered out ${cities.length - valid.length} cities due to invalid coordinates`
                     );
                 }
@@ -156,7 +145,7 @@ export class MyCitiesStoreService
     {
         return Number.isFinite(Number(value));
     }
-    
+
     // In case we ever implement a manual refresh button. 
     // This clears the cache and forces a reload on next ensureLoaded() call.   
     refresh(): Observable<MyCityDto[]> 

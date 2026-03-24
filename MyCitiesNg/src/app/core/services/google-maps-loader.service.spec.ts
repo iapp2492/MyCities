@@ -27,16 +27,6 @@ describe('GoogleMapsLoaderService', () =>
         service = TestBed.inject(GoogleMapsLoaderService);
     });
 
-    it('setOptions forwards options to loader', () =>
-    {
-        const options = { apiKey: 'TEST_KEY' } as unknown as Parameters<GoogleMapsJsApiLoaderLike['setOptions']>[0];
-
-        service.setOptions(options);
-
-        expect(loaderMock.setOptions).toHaveBeenCalledTimes(1);
-        expect(loaderMock.setOptions).toHaveBeenCalledWith(options);
-    });
-
     it('importLibrary forwards the library name and returns the same Promise instance', () =>
     {
         const fakePromise = Promise.resolve({ anything: true }) as unknown;
@@ -59,4 +49,24 @@ describe('GoogleMapsLoaderService', () =>
 
         await expectAsync(service.importLibrary('maps')).toBeRejectedWith(err);
     });
+
+    it('importLibrary should not call setOptions again after options were already initialized', () =>
+    {
+        const firstPromise = Promise.resolve({ first: true }) as unknown;
+        const secondPromise = Promise.resolve({ second: true }) as unknown;
+
+        (loaderMock.importLibrary as jasmine.Spy)
+            .and.returnValues(firstPromise, secondPromise);
+
+        const firstResult = service.importLibrary('maps');
+        const secondResult = service.importLibrary('marker');
+
+        expect(loaderMock.setOptions).toHaveBeenCalledTimes(1);
+        expect(loaderMock.importLibrary).toHaveBeenCalledTimes(2);
+        expect(loaderMock.importLibrary).toHaveBeenCalledWith('maps');
+        expect(loaderMock.importLibrary).toHaveBeenCalledWith('marker');
+        expect(firstResult as unknown).toBe(firstPromise);
+        expect(secondResult as unknown).toBe(secondPromise);
+    });
+
 });

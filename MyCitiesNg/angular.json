@@ -27,6 +27,10 @@
                         "browser": "src/main.ts",
                         "tsConfig": "tsconfig.app.json",
                         "inlineStyleLanguage": "scss",
+                        "allowedCommonJsDependencies": [
+                            "leaflet",
+                            "mapbox-gl"
+                        ],
                         "assets": [
                             "src/favicon.ico",
                             "src/assets",
@@ -36,6 +40,9 @@
                             }
                         ],
                         "styles": [
+                            "node_modules/swiper/swiper.css",
+                            "node_modules/swiper/modules/navigation.css",
+                            "node_modules/swiper/modules/pagination.css",
                             "src/styles.scss"
                         ]
                     },
@@ -66,6 +73,14 @@
                             "optimization": false,
                             "extractLicenses": false,
                             "sourceMap": true
+                        },
+                        "debug": {
+                            "fileReplacements": [
+                                {
+                                    "replace": "src/environments/environment.ts",
+                                    "with": "src/environments/environment.debug.ts"
+                                }
+                            ]
                         }
                     },
                     "defaultConfiguration": "production"
@@ -78,6 +93,9 @@
                         },
                         "development": {
                             "buildTarget": "MyCitiesNg:build:development"
+                        },
+                        "debug": {
+                            "buildTarget": "MyCitiesNg:build:debug"
                         }
                     },
                     "defaultConfiguration": "development"
@@ -97,6 +115,9 @@
                             "src/assets"
                         ],
                         "styles": [
+                            "node_modules/swiper/swiper.css",
+                            "node_modules/swiper/modules/navigation.css",
+                            "node_modules/swiper/modules/pagination.css",
                             "src/styles.scss"
                         ],
                         "scripts": []

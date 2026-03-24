@@ -9,6 +9,8 @@ import * as L from 'leaflet';
 import { MapHintService } from '../../core/services/map-hint.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { CityPopupHtmlService } from '../../core/services/city-popup-html.service';
+import { DebugLoggerService } from '../../core/services/debug-logger.service';
+import { MatDialog } from '@angular/material/dialog';
 
 type ZoomHandler = (zoom?: number) => void;
 
@@ -63,7 +65,7 @@ class MyCitiesStoreMock
     stayDurations$ = of<string[]>(['1 mo', '3-5 mos']);
     decades$ = of<string[]>(['1990s', '2000s']);
 
-    private readonly _filteredCities = new BehaviorSubject<MyCityDto[] | null>(null);
+    private readonly _filteredCities = new BehaviorSubject<MyCityDto[]>([]);
     filteredCities$ = this._filteredCities.asObservable();
 
     private readonly _basemapMode = new BehaviorSubject<BasemapMode>('standard' as BasemapMode);
@@ -77,8 +79,9 @@ class MyCitiesStoreMock
     setDecadeFilter = jasmine.createSpy('setDecadeFilter');
     setStayDurationFilter = jasmine.createSpy('setStayDurationFilter');
     setBasemapMode = jasmine.createSpy('setBasemapMode');
+    hasPhotos = jasmine.createSpy('hasPhotos').and.returnValue(false);
 
-    emitCities(cities: MyCityDto[] | null): void
+    emitCities(cities: MyCityDto[]): void
     {
         this._filteredCities.next(cities);
     }
@@ -154,6 +157,18 @@ function createFakeBounds(): LeafletBoundsLike
         extend: jasmine.createSpy('extend'),
     };
 }
+
+const debugLoggerMock =
+{
+    warn: jasmine.createSpy('warn'),
+    log: jasmine.createSpy('log'),
+    error: jasmine.createSpy('error')
+};
+
+const dialogMock =
+{
+    open: jasmine.createSpy('open')
+};
 
 describe('LeafletMapComponent', () =>
 {
@@ -238,7 +253,10 @@ describe('LeafletMapComponent', () =>
                     { provide: MyCitiesStoreService, useValue: myCitiesStoreMock },
                     { provide: MapHintService, useValue: mapHintServiceMock },
                     { provide: MatSnackBar, useValue: snackBarMock },
-                    { provide: CityPopupHtmlService, useValue: popupHtmlMock },],
+                    { provide: DebugLoggerService, useValue: debugLoggerMock },
+                    { provide: CityPopupHtmlService, useValue: popupHtmlMock }, 
+                    { provide: MatDialog, useValue: dialogMock },
+                ],                   
         })
         .compileComponents();
 
@@ -275,7 +293,7 @@ describe('LeafletMapComponent', () =>
 
         component.onStayChange(null);
 
-        expect(myCitiesStoreMock.setStayDurationFilter).toHaveBeenCalledWith('null');
+        expect(myCitiesStoreMock.setStayDurationFilter).toHaveBeenCalledWith(null);
     });
 
     it('onBasemapChange should update selectedBasemap and call store.setBasemapMode', () =>
@@ -491,8 +509,6 @@ describe('LeafletMapComponent', () =>
         const marker = createFakeMarker();
         (L.marker as jasmine.Spy).and.returnValue(marker as unknown as L.Marker);
 
-        spyOn(console, 'warn');
-
         (component as unknown as { map: LeafletMapLike }).map = fakeMap;
         (component as unknown as { markerLayer: LeafletLayerGroupLike }).markerLayer = fakeLayerGroup;
 
@@ -516,10 +532,13 @@ describe('LeafletMapComponent', () =>
         (component as unknown as { renderMarkers: (c: MyCityDto[]) => void }).renderMarkers(cities);
 
         // Assert: invalid coords were detected
-        expect(console.warn).toHaveBeenCalled();
-        expect((console.warn as jasmine.Spy).calls.allArgs().some(a =>
-            String(a[0]).includes('Skipping') && String(a[0]).includes('invalid coordinates')
-        )).toBeTrue();
+       expect(debugLoggerMock.warn).toHaveBeenCalled();
+        expect(
+            debugLoggerMock.warn.calls.allArgs().some(args =>
+                String(args[0]).includes('Skipping') &&
+                String(args[0]).includes('invalid coordinates')
+            )
+        ).toBeTrue();
 
         // Only the valid city should extend bounds (once)
         expect(bounds.extend).toHaveBeenCalledTimes(1);
@@ -610,7 +629,7 @@ describe('LeafletMapComponent', () =>
 
     it('renderMarkers should warn once at the end when skipped > 0', () =>
     {
-        const warnSpy = spyOn(console, 'warn');
+        (debugLoggerMock.warn as jasmine.Spy).calls.reset();
 
         (component as unknown as { map: LeafletMapLike }).map = fakeMap;
 
@@ -623,9 +642,9 @@ describe('LeafletMapComponent', () =>
         (component as unknown as { renderMarkers: (c: MyCityDto[]) => void }).renderMarkers(cities);
 
         // 1) city-level warning + 2) summary warning
-        expect(warnSpy.calls.count()).toBeGreaterThanOrEqual(1);
+        expect(debugLoggerMock.warn.calls.count()).toBeGreaterThanOrEqual(1);
 
-        const lastArgs = warnSpy.calls.mostRecent().args;
+        const lastArgs = debugLoggerMock.warn.calls.mostRecent().args;
         expect(String(lastArgs[0])).toContain('Skipped');
 
         // Optional: verify the count is included (if your message includes the number)
@@ -642,9 +661,9 @@ describe('LeafletMapComponent', () =>
 
         (component as unknown as { wireData: () => void }).wireData();
 
-        expect(console.error).toHaveBeenCalled();
+        expect(debugLoggerMock.error).toHaveBeenCalled();
 
-        const args = (console.error as jasmine.Spy).calls.mostRecent().args;
+        const args = (debugLoggerMock.error as jasmine.Spy).calls.mostRecent().args;
         expect(String(args[0])).toContain('Failed to load cities');
     });
 
@@ -746,6 +765,234 @@ describe('LeafletMapComponent', () =>
 
         expect(escapeHtml(null)).toBe('');
         expect(escapeHtml(undefined)).toBe('');
+    });
+
+    it('ngAfterViewInit should open snack bar when map hint service requests a hint', () =>
+    {
+        const snackBar = TestBed.inject(MatSnackBar) as unknown as
+        {
+            open: jasmine.Spy;
+        };
+
+        const mapHintService = TestBed.inject(MapHintService) as unknown as
+        {
+            showOnceIfNeeded: jasmine.Spy;
+        };
+
+        mapHintService.showOnceIfNeeded.and.callFake(
+            (_engine: string, presenter: { showHint(message: string): void }): void =>
+            {
+                presenter.showHint('Tip: Tap a marker to see city details.');
+            });
+
+        fixture.detectChanges();
+
+        expect(snackBar.open).toHaveBeenCalledWith(
+            'Tip: Tap a marker to see city details.',
+            'Got it',
+            jasmine.objectContaining(
+            {
+                duration: 8000,
+                horizontalPosition: 'center',
+                verticalPosition: 'top',
+                panelClass: ['mycities-toast']
+            }));
+    });
+
+    it('renderMarkers popupopen should return early when popup element or photo link is missing, and open dialog for valid photo key', () =>
+    {
+        const dialog = TestBed.inject(MatDialog) as unknown as
+        {
+            open: jasmine.Spy;
+        };
+
+        const popupHtml = TestBed.inject(CityPopupHtmlService) as unknown as
+        {
+            build: jasmine.Spy;
+        };
+
+        const markerHandlers: Record<string, (event: unknown) => void> = {};
+
+        const marker =
+        {
+           on: jasmine.createSpy('on').and.callFake((event: string, handler: (event: unknown) => void) =>
+            {
+                markerHandlers[event] = handler;
+            }),
+            setOpacity: jasmine.createSpy('setOpacity'),
+            bindTooltip: jasmine.createSpy('bindTooltip').and.callFake(() => marker),
+            bindPopup: jasmine.createSpy('bindPopup').and.callFake(() => marker),
+            addTo: jasmine.createSpy('addTo'),
+            getLatLng: jasmine.createSpy('getLatLng').and.returnValue({ lat: 10, lng: 20 }),
+            openTooltip: jasmine.createSpy('openTooltip'),
+            closeTooltip: jasmine.createSpy('closeTooltip')
+        };
+
+        (L.marker as jasmine.Spy).and.returnValue(marker as unknown as L.Marker);
+        popupHtml.build.and.returnValue('<a class="js-view-photos" data-photo-key="123">View photos</a>');
+
+        (component as unknown as { map: unknown }).map = fakeMap;
+        (component as unknown as { markerLayer: unknown }).markerLayer = fakeLayerGroup;
+
+        const cities =
+        [
+            {
+                city: 'GoodCity',
+                country: 'Y',
+                lat: 10,
+                lon: 20,
+                photoKey: 123
+            } as unknown as MyCityDto
+        ];
+
+        (component as unknown as { renderMarkers: (c: MyCityDto[]) => void }).renderMarkers(cities);
+
+        expect(markerHandlers['popupopen']).toBeDefined();
+
+        // Branch 1: no popup element
+        markerHandlers['popupopen']!(
+        {
+            popup:
+            {
+                getElement: (): HTMLElement | null => null
+            }
+        });
+
+        expect(dialog.open).not.toHaveBeenCalled();
+
+        // Branch 2: popup exists but no link
+        const popupWithoutLink = document.createElement('div');
+
+        markerHandlers['popupopen']!(
+        {
+            popup:
+            {
+                getElement: (): HTMLElement => popupWithoutLink
+            }
+        });
+
+        expect(dialog.open).not.toHaveBeenCalled();
+
+        // Branch 3: valid link -> onclick gets assigned -> invoke it
+        const popupWithLink = document.createElement('div');
+        const link = document.createElement('a');
+        link.className = 'js-view-photos';
+        link.setAttribute('data-photo-key', '123');
+        popupWithLink.appendChild(link);
+
+        markerHandlers['popupopen']!(
+        {
+            popup:
+            {
+                getElement: (): HTMLElement => popupWithLink
+            }
+        });
+
+        expect(typeof link.onclick).toBe('function');
+
+        const preventDefault = jasmine.createSpy('preventDefault');
+        const stopPropagation = jasmine.createSpy('stopPropagation');
+
+        link.onclick!(
+            {
+                preventDefault,
+                stopPropagation
+            } as unknown as PointerEvent);
+
+        expect(preventDefault).toHaveBeenCalled();
+        expect(stopPropagation).toHaveBeenCalled();
+        expect(dialog.open).toHaveBeenCalled();
+    });
+
+    it('renderMarkers popupopen should warn and return when popup link has invalid photo key', () =>
+    {
+        const dialog = TestBed.inject(MatDialog) as unknown as
+        {
+            open: jasmine.Spy;
+        };
+
+        const popupHtml = TestBed.inject(CityPopupHtmlService) as unknown as
+        {
+            build: jasmine.Spy;
+        };
+
+        const debugLogger = TestBed.inject(DebugLoggerService) as unknown as
+        {
+            warn: jasmine.Spy;
+        };
+
+        const markerHandlers: Record<string, (event: unknown) => void> = {};
+
+        const marker =
+        {
+            on: jasmine.createSpy('on').and.callFake((event: string, handler: (event: unknown) => void) =>
+            {
+                markerHandlers[event] = handler;
+            }),
+            setOpacity: jasmine.createSpy('setOpacity'),
+            bindTooltip: jasmine.createSpy('bindTooltip').and.callFake(() => marker),
+            bindPopup: jasmine.createSpy('bindPopup').and.callFake(() => marker),
+            addTo: jasmine.createSpy('addTo'),
+            getLatLng: jasmine.createSpy('getLatLng').and.returnValue({ lat: 10, lng: 20 }),
+            openTooltip: jasmine.createSpy('openTooltip'),
+            closeTooltip: jasmine.createSpy('closeTooltip')
+        };
+
+        (L.marker as jasmine.Spy).and.returnValue(marker as unknown as L.Marker);
+        popupHtml.build.and.returnValue('<a class="js-view-photos" data-photo-key="abc">View photos</a>');
+
+        (component as unknown as { map: unknown }).map = fakeMap;
+        (component as unknown as { markerLayer: unknown }).markerLayer = fakeLayerGroup;
+
+        const cities =
+        [
+            {
+                city: 'GoodCity',
+                country: 'Y',
+                lat: 10,
+                lon: 20,
+                photoKey: 123
+            } as unknown as MyCityDto
+        ];
+
+        (component as unknown as { renderMarkers: (c: MyCityDto[]) => void }).renderMarkers(cities);
+        expect(dialog.open).not.toHaveBeenCalled();
+
+        expect(markerHandlers['popupopen']).toBeDefined();
+
+        const popupWithInvalidLink = document.createElement('div');
+        const link = document.createElement('a');
+        link.className = 'js-view-photos';
+        link.setAttribute('data-photo-key', 'abc');
+        popupWithInvalidLink.appendChild(link);
+
+        markerHandlers['popupopen']!(
+        {
+            popup:
+            {
+                getElement: (): HTMLElement => popupWithInvalidLink
+            }
+        });
+        expect(dialog.open).not.toHaveBeenCalled();
+
+        expect(typeof link.onclick).toBe('function');
+        
+        dialog.open.calls.reset();
+        debugLogger.warn.calls.reset();
+
+        const preventDefault = jasmine.createSpy('preventDefault');
+        const stopPropagation = jasmine.createSpy('stopPropagation');
+
+        link.onclick!(
+        {
+            preventDefault,
+            stopPropagation
+        } as unknown as PointerEvent);
+
+        expect(preventDefault).toHaveBeenCalled();
+        expect(stopPropagation).toHaveBeenCalled();
+        expect(debugLogger.warn).toHaveBeenCalledWith('Invalid photo key in popup:', 'abc');
+        expect(dialog.open).not.toHaveBeenCalled();
     });
 
 });

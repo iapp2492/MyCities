@@ -4,6 +4,7 @@ import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/materia
 import { MatButtonModule } from '@angular/material/button';
 
 import { PhotoViewerComponent } from './photo-viewer.component';
+import { DebugLoggerService } from '../core/services/debug-logger.service';
 
 export interface PhotoViewerDialogData
 {
@@ -124,6 +125,7 @@ export class PhotoViewerDialogComponent implements OnInit
 {
     private readonly dialogRef = inject(MatDialogRef<PhotoViewerDialogComponent>);
     public readonly  data = inject(MAT_DIALOG_DATA) as PhotoViewerDialogData; 
+    private readonly debugLogger = inject(DebugLoggerService);
 
 
     public captionText = '';
@@ -135,7 +137,7 @@ export class PhotoViewerDialogComponent implements OnInit
     
     ngOnInit(): void
     {
-        console.log('Dialog data:', this.data);
+        this.debugLogger.log('Dialog data:', this.data);
     }
 
     public close(): void

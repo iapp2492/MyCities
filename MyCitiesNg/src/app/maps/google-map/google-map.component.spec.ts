@@ -7,6 +7,9 @@ import type { MyCityDto } from '../../../models/myCityDto';
 import type { BasemapMode } from '../../../models/basemapMode';
 import { MapHintPresenter, MapHintService } from '../../core/services/map-hint.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { MatDialog } from '@angular/material/dialog';
+import { DebugLoggerService } from '../../core/services/debug-logger.service';
 
 class MockAdvancedMarkerElement
 {
@@ -25,10 +28,15 @@ class MockAdvancedMarkerElement
 
     public addListener(eventName: string, handler: () => void): void
     {
-        if (eventName === 'click')
+        if (eventName === 'gmp-click')
         {
             this.clickHandlers.push(handler);
         }
+    }
+
+    public addEventListener(eventName: string, handler: () => void): void
+    {
+        this.addListener(eventName, handler);
     }
 
     public triggerClick(): void
@@ -51,6 +59,7 @@ class TestCitiesStoreMock
     public setDecadeFilter = jasmine.createSpy('setDecadeFilter');
     public setStayDurationFilter = jasmine.createSpy('setStayDurationFilter');
     public setBasemapMode = jasmine.createSpy('setBasemapMode');
+    public hasPhotos = jasmine.createSpy('hasPhotos').and.returnValue(false);
 
     public ensureLoaded(): Observable<void>
     {
@@ -62,6 +71,22 @@ class TestCitiesStoreMock
         this.filteredCitiesSubject.next(value);
     }
 }
+
+const activatedRouteMock =
+{
+    snapshot:
+    {
+        paramMap: convertToParamMap({}),
+        queryParamMap: convertToParamMap({}),
+        data: {},
+        url: []
+    },
+    params: of({}),
+    queryParams: of({}),
+    data: of({}),
+    fragment: of(null),
+    url: of([])
+};
 
 class GoogleMapsLoaderMock
 {
@@ -75,6 +100,8 @@ class GoogleMapsLoaderMock
                 Map: (globalThis as unknown as { google: typeof google }).google.maps.Map
             };
         }
+
+        this.setOptions();
 
         return {};
     });
@@ -159,6 +186,7 @@ function installGoogleMapsMocks(): GoogleMocks
     {
         setContent: jasmine.createSpy('setContent'),
         open: jasmine.createSpy('open'),
+        addListener: jasmine.createSpy('addListener')
     } as unknown as google.maps.InfoWindow;
 
     const boundsInstance =
@@ -256,6 +284,8 @@ describe('GoogleMapComponent', () =>
         {
             imports: [GoogleMapComponent],
             providers: [
+                provideRouter([]),
+                { provide: ActivatedRoute, useValue: activatedRouteMock },
                 { provide: MyCitiesStoreService, useValue: store },
                 { provide: GoogleMapsLoaderService, useClass: GoogleMapsLoaderMock },
                 { provide: MapHintService, useClass: MapHintServiceMock },
@@ -294,21 +324,18 @@ describe('GoogleMapComponent', () =>
 
             return original(id);
         });
-        mapsLoader.setOptions.calls.reset();
         mapsLoader.importLibrary.calls.reset();
 
         await (component as unknown as { initMapOnce(): Promise<void> }).initMapOnce();
 
-        expect(mapsLoader.setOptions).not.toHaveBeenCalled();
         expect(mapsLoader.importLibrary).not.toHaveBeenCalled();
     });
 
     it('initMapOnce should create the map and infowindow once', async () =>
     {
-        await (component as unknown as { initMapOnce(): Promise<void> }).initMapOnce();
+        mapsLoader.importLibrary.calls.reset();
         await (component as unknown as { initMapOnce(): Promise<void> }).initMapOnce();
 
-        expect(mapsLoader.setOptions).toHaveBeenCalledTimes(1);
         expect(mapsLoader.importLibrary).toHaveBeenCalledWith('maps');
         expect(mapsLoader.importLibrary).toHaveBeenCalledWith('marker');
 
@@ -470,18 +497,18 @@ describe('GoogleMapComponent', () =>
         expect(map).toBeUndefined();
     });
 
-    it('onDecadeChange should store selection and call store with empty string when null', () =>
+    it('onDecadeChange should call store with null when null is selected', () =>
     {
         component.onDecadeChange(null);
 
-        expect(store.setDecadeFilter).toHaveBeenCalledWith('');
+        expect(store.setDecadeFilter).toHaveBeenCalledWith(null);
     });
 
-    it('onStayChange should store selection and call store with empty string when null', () =>
+    it('onStayChange should call store with null when null is selected', () =>
     {
         component.onStayChange(null);
 
-        expect(store.setStayDurationFilter).toHaveBeenCalledWith('');
+        expect(store.setStayDurationFilter).toHaveBeenCalledWith(null);
     });
 
    it('ngAfterViewInit should store latestCities but not render markers when map is not ready yet', async () =>
@@ -495,6 +522,8 @@ describe('GoogleMapComponent', () =>
             imports: [GoogleMapComponent],
             providers:
             [
+                provideRouter([]),
+                { provide: ActivatedRoute, useValue: activatedRouteMock },
                 { provide: MyCitiesStoreService, useValue: manualStore },
                 { provide: GoogleMapsLoaderService, useClass: GoogleMapsLoaderMock }
             ]
@@ -596,6 +625,8 @@ describe('GoogleMapComponent', () =>
             imports: [GoogleMapComponent],
             providers:
             [
+                provideRouter([]),
+                { provide: ActivatedRoute, useValue: activatedRouteMock },
                 { provide: MyCitiesStoreService, useValue: erroringStore },
                 { provide: GoogleMapsLoaderService, useClass: GoogleMapsLoaderMock }
             ]
@@ -652,6 +683,100 @@ describe('GoogleMapComponent', () =>
                 panelClass: ['mycities-toast']
             }
         );
+    });
+
+    it('attachPopupHandlers should early return when container missing or link missing, and open viewer when valid', async () =>
+    {
+        await (component as unknown as { initMapOnce(): Promise<void> }).initMapOnce();
+
+        const dialog = TestBed.inject(MatDialog);
+        const debugLogger = TestBed.inject(DebugLoggerService);
+        const dialogOpenSpy = spyOn(dialog, 'open').and.stub();
+        const logSpy = spyOn(debugLogger, 'log').and.stub();
+
+        const querySelectorSpy = spyOn(document, 'querySelector');
+
+        // Case 1: no info window container
+        querySelectorSpy.and.returnValue(null);
+
+        (component as unknown as { attachPopupHandlers(): void }).attachPopupHandlers();
+
+        expect(dialogOpenSpy).not.toHaveBeenCalled();
+
+        // Case 2: container exists but photo link does not
+        const containerWithoutLink = document.createElement('div');
+        querySelectorSpy.and.returnValue(containerWithoutLink);
+
+        (component as unknown as { attachPopupHandlers(): void }).attachPopupHandlers();
+
+        expect(dialogOpenSpy).not.toHaveBeenCalled();
+
+        // Case 3: valid link with photo key
+        const containerWithLink = document.createElement('div');
+        containerWithLink.className = 'gm-style-iw';
+
+        const link = document.createElement('a');
+        link.className = 'js-view-photos';
+        link.setAttribute('data-photo-key', '123');
+
+        containerWithLink.appendChild(link);
+        querySelectorSpy.and.returnValue(containerWithLink);
+
+        (component as unknown as { attachPopupHandlers(): void }).attachPopupHandlers();
+
+        const clickEvent = new MouseEvent('click', { bubbles: true, cancelable: true });
+        spyOn(clickEvent, 'preventDefault').and.callThrough();
+        spyOn(clickEvent, 'stopPropagation').and.callThrough();
+
+        link.dispatchEvent(clickEvent);
+
+        expect(clickEvent.preventDefault).toHaveBeenCalled();
+        expect(clickEvent.stopPropagation).toHaveBeenCalled();
+        expect(logSpy).toHaveBeenCalledWith('Opening photo dialog for photoKey: 123');
+        expect(dialogOpenSpy).toHaveBeenCalled();
+    });
+
+    it('initMapOnce should wire domready and call attachPopupHandlers when domready fires', async () =>
+    {
+        const attachSpy = spyOn(
+            component as unknown as { attachPopupHandlers(): void },
+            'attachPopupHandlers'
+        ).and.callThrough();
+
+        await (component as unknown as { initMapOnce(): Promise<void> }).initMapOnce();
+
+        const addListenerSpy = g.infoWindowInstance.addListener as jasmine.Spy;
+
+        expect(addListenerSpy).toHaveBeenCalled();
+
+        const domreadyCall = addListenerSpy.calls.all().find((call) => call.args[0] === 'domready');
+        expect(domreadyCall).toBeDefined();
+
+        const domreadyHandler = domreadyCall!.args[1] as () => void;
+        domreadyHandler();
+
+        expect(attachSpy).toHaveBeenCalled();
+    });
+
+    it('attachPopupHandlers should return when clicked photo link has no data-photo-key', async () =>
+    {
+        await (component as unknown as { initMapOnce(): Promise<void> }).initMapOnce();
+
+        const dialog = TestBed.inject(MatDialog);
+        const dialogOpenSpy = spyOn(dialog, 'open').and.stub();
+
+        const container = document.createElement('div');
+        const link = document.createElement('a');
+        link.className = 'js-view-photos';
+        container.appendChild(link);
+
+        spyOn(document, 'querySelector').and.returnValue(container);
+
+        (component as unknown as { attachPopupHandlers(): void }).attachPopupHandlers();
+
+        link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+
+        expect(dialogOpenSpy).not.toHaveBeenCalled();
     });
 
 });

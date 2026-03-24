@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { Component, DestroyRef, EventEmitter, inject, Input, Output } from '@angular/core';
-import { ActivatedRoute, NavigationEnd, Router } from '@angular/router';
+import { NavigationEnd, Router } from '@angular/router';
 import { filter, Observable } from 'rxjs';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -38,7 +38,6 @@ export class MapFiltersBarComponent
     @Output() basemapChange = new EventEmitter<string>();
 
     private readonly router = inject(Router);
-    private readonly route = inject(ActivatedRoute);
     private readonly destroyRef = inject(DestroyRef);
 
     public currentEngine: MapEngine = 'leaflet';

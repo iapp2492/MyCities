@@ -9,9 +9,13 @@ import type { MapboxFactory } from '../../core/map/mapbox.factory';
 import { MapHintService } from '../../core/services/map-hint.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { CityPopupHtmlService } from '../../core/services/city-popup-html.service';
-
+import { provideRouter } from '@angular/router';import { ActivatedRoute, convertToParamMap } from '@angular/router';
+import { MatDialog } from '@angular/material/dialog';
+import { DebugLoggerService } from '../../core/services/debug-logger.service';
 
 type LoadHandler = () => void;
+
+let dialogMock: { open: jasmine.Spy };
 
 interface MapboxMapLike
 {
@@ -28,6 +32,15 @@ interface MapboxMapLike
     remove(): void;
 }
 
+type PopupEventHandler = () => void;
+
+interface PopupLike
+{
+    setHTML(html: string): PopupLike;
+    on(event: string, handler: PopupEventHandler): PopupLike;
+    getElement(): HTMLElement | null;
+}
+
 type MapboxMapLikeSpy = Omit<MapboxMapLike, 'on' | 'once' | 'setStyle' | 'fitBounds' | 'addControl' | 'resize' | 'remove'> &
 {
     on: jasmine.Spy;
@@ -39,7 +52,6 @@ type MapboxMapLikeSpy = Omit<MapboxMapLike, 'on' | 'once' | 'setStyle' | 'fitBou
     resize: jasmine.Spy;
     remove: jasmine.Spy;
 };
-
 
 interface MarkerLike
 {
@@ -82,6 +94,8 @@ class MyCitiesStoreMock
 {
     stayDurations$ = of<string[]>(['1 mo', '3-5 mos']);
     decades$ = of<string[]>(['1990s', '2000s']);
+    stayDurationFilter$ = of<string | null>(null);
+    decadeFilter$ = of<string | null>(null);
 
     private readonly filteredCitiesSubject = new BehaviorSubject<MyCityDto[] | null>(null);
     filteredCities$ = this.filteredCitiesSubject.asObservable();
@@ -94,6 +108,7 @@ class MyCitiesStoreMock
     setDecadeFilter = jasmine.createSpy('setDecadeFilter');
     setStayDurationFilter = jasmine.createSpy('setStayDurationFilter');
     setBasemapMode = jasmine.createSpy('setBasemapMode');
+    hasPhotos = jasmine.createSpy('hasPhotos').and.returnValue(false);
 
     emitCities(cities: MyCityDto[] | null): void
     {
@@ -158,6 +173,10 @@ function createFakePopup(): PopupLike
     const popup: PopupLike =
     {
         setHTML: jasmine.createSpy('setHTML').and.callFake(() => popup),
+
+        on: jasmine.createSpy('on').and.callFake(() => popup),
+
+        getElement: jasmine.createSpy('getElement').and.returnValue(null)
     };
 
     return popup;
@@ -222,6 +241,13 @@ describe('MapboxMapComponent', () =>
     let factory: MapboxFactoryMock;
 
     let host: HTMLDivElement;
+    let debugLoggerMock:
+    {
+        log: jasmine.Spy;
+        warn: jasmine.Spy;
+        error: jasmine.Spy;
+        debugTap: jasmine.Spy;
+    };
 
     beforeEach(async () =>
     {
@@ -240,17 +266,50 @@ describe('MapboxMapComponent', () =>
             return 1;
         });
 
+        dialogMock =
+        {
+            open: jasmine.createSpy('open')
+        };
+
+        debugLoggerMock =
+        {
+            log: jasmine.createSpy('log'),
+            warn: jasmine.createSpy('warn'),
+            error: jasmine.createSpy('error'),
+            debugTap: jasmine.createSpy('debugTap').and.callFake(() => (source$: Observable<unknown>) => source$)
+        };
+
         await TestBed.configureTestingModule(
         {
             imports: [MapboxMapComponent],
             providers:
             [
+                provideRouter([]),
+                { provide: ActivatedRoute,
+                    useValue:
+                    {
+                        snapshot:
+                        {
+                            paramMap: convertToParamMap({}),
+                            queryParamMap: convertToParamMap({}),
+                            data: {},
+                            url: []
+                        },
+                        params: of({}),
+                        queryParams: of({}),
+                        data: of({}),
+                        fragment: of(null),
+                        url: of([])
+                    }
+                },
                 { provide: MyCitiesStoreService, useValue: myCitiesStoreMock },
                 { provide: MAPBOX_FACTORY, useValue: factory },
 
                 { provide: MapHintService, useClass: MapHintServiceMock },
                 { provide: MatSnackBar, useValue: snackBarMock },
-                { provide: CityPopupHtmlService, useClass: CityPopupHtmlServiceMock }
+                { provide: MatDialog, useValue: dialogMock },
+                { provide: CityPopupHtmlService, useClass: CityPopupHtmlServiceMock },
+                { provide: DebugLoggerService, useValue: debugLoggerMock },
             ]
         })
         .compileComponents();
@@ -271,34 +330,30 @@ describe('MapboxMapComponent', () =>
         expect(component).toBeTruthy();
     });
 
-    it('onDecadeChange should update selectedDecade and call store.setDecadeFilter', () =>
+    it('onDecadeChange should call store.setDecadeFilter', () =>
     {
         fixture.detectChanges();
 
         component.onDecadeChange('1990s');
 
-        expect(component.selectedDecade).toBe('1990s');
         expect(myCitiesStoreMock.setDecadeFilter).toHaveBeenCalledWith('1990s');
 
         component.onDecadeChange(null);
 
-        expect(component.selectedDecade).toBeNull();
-        expect(myCitiesStoreMock.setDecadeFilter).toHaveBeenCalledWith('');
+        expect(myCitiesStoreMock.setDecadeFilter).toHaveBeenCalledWith(null);
     });
 
-    it('onStayChange should update selectedStayDuration and call store.setStayDurationFilter', () =>
+    it('onStayChange should call store.setStayDurationFilter', () =>
     {
         fixture.detectChanges();
 
         component.onStayChange('3-5 mos');
 
-        expect(component.selectedStayDuration).toBe('3-5 mos');
         expect(myCitiesStoreMock.setStayDurationFilter).toHaveBeenCalledWith('3-5 mos');
 
         component.onStayChange(null);
 
-        expect(component.selectedStayDuration).toBeNull();
-        expect(myCitiesStoreMock.setStayDurationFilter).toHaveBeenCalledWith('');
+        expect(myCitiesStoreMock.setStayDurationFilter).toHaveBeenCalledWith(null);
     });
 
     it('ngAfterViewInit should call ensureLoaded and create the map once', () =>
@@ -670,6 +725,173 @@ describe('MapboxMapComponent', () =>
 
         expect(factory.createdMarkers.length).toBe(0);
         expect(factory.mapResult.map.fitBounds).not.toHaveBeenCalled();
+    });
+
+    it('initMapOnce should execute runAfterLoad immediately when map.loaded() is true', () =>
+    {
+        factory.mapResult.map.loaded.and.returnValue(true);
+
+        fixture.detectChanges();
+
+        expect(factory.mapResult.map.resize).toHaveBeenCalled();
+    });
+
+    it('renderMarkers popup open should exit when link is missing', () =>
+    {
+        fixture.detectChanges();
+
+        const cities =
+        [
+            { city: 'Good1', country: 'X', lat: 10, lon: 20 } as unknown as MyCityDto,
+        ];
+
+        myCitiesStoreMock.emitCities(cities);
+        
+        const popup = factory.createdPopups[0];
+
+        (popup.getElement as jasmine.Spy).and.returnValue(document.createElement('div'));
+
+
+        const handler = (popup.on as jasmine.Spy).calls.mostRecent().args[1];
+
+        handler(); // simulate popup open
+    });
+
+    it('renderMarkers popup click should open dialog when valid photoKey', () =>
+    {
+        fixture.detectChanges();
+
+        const popupEl = document.createElement('div');
+        const link = document.createElement('a');
+        link.className = 'js-view-photos';
+        link.setAttribute('data-photo-key', '123');
+
+        popupEl.appendChild(link);
+
+        const cities =
+        [
+            { city: 'Good1', country: 'X', lat: 10, lon: 20, photoKey: 123 } as unknown as MyCityDto,
+        ];
+
+        myCitiesStoreMock.emitCities(cities);
+
+        const popup = factory.createdPopups[0];
+        expect(popup).toBeDefined();
+
+        (popup.getElement as jasmine.Spy).and.returnValue(popupEl);
+
+        const handler = (popup.on as jasmine.Spy).calls.mostRecent().args[1] as () => void;
+        handler();
+
+        const clickEvent = new PointerEvent('click');
+        spyOn(clickEvent, 'preventDefault');
+        spyOn(clickEvent, 'stopPropagation');
+
+        link.onclick?.(clickEvent);
+
+        expect(clickEvent.preventDefault).toHaveBeenCalled();
+        expect(clickEvent.stopPropagation).toHaveBeenCalled();
+        expect(dialogMock.open).toHaveBeenCalled();
+    });
+
+    it('initMapOnce should return early when createMap returns undefined', () =>
+    {
+        spyOn(factory, 'createMap').and.returnValue(undefined as unknown as mapboxgl.Map);
+
+        fixture.detectChanges();
+
+        expect(factory.createMap).toHaveBeenCalled();
+        expect(factory.mapResult.map.addControl).not.toHaveBeenCalled();
+        expect(factory.mapResult.map.resize).not.toHaveBeenCalled();
+    });
+
+    it('initMapOnce should open snackBar when map hint service calls showHint', () =>
+    {
+        const mapHintService = TestBed.inject(MapHintService) as unknown as MapHintServiceMock;
+
+        mapHintService.showOnceIfNeeded.and.callFake((_engine, presenter) =>
+        {
+            presenter.showHint('Tip: Tap a marker to see city details.');
+        });
+
+        fixture.detectChanges();
+
+        factory.mapResult.handlers.load?.();
+
+        expect(snackBarMock.open).toHaveBeenCalledWith(
+            'Tip: Tap a marker to see city details.',
+            'Got it',
+            jasmine.objectContaining(
+            {
+                duration: 8000,
+                horizontalPosition: 'center',
+                verticalPosition: 'top',
+                panelClass: ['mycities-toast']
+            })
+        );
+    });
+
+    it('renderMarkers popup open should exit when popup element is missing', () =>
+    {
+        fixture.detectChanges();
+
+        const cities =
+        [
+            { city: 'Good1', country: 'X', lat: 10, lon: 20, photoKey: 123 } as unknown as MyCityDto,
+        ];
+
+        myCitiesStoreMock.emitCities(cities);
+
+        const popup = factory.createdPopups[0];
+        expect(popup).toBeDefined();
+
+        (popup.getElement as jasmine.Spy).and.returnValue(null);
+
+        const handler = (popup.on as jasmine.Spy).calls.mostRecent().args[1] as () => void;
+
+        handler();
+    });
+
+    it('renderMarkers popup click should warn and return when photoKey is invalid', () =>
+    {
+        fixture.detectChanges();
+
+        const popupEl = document.createElement('div');
+        const link = document.createElement('a');
+        link.className = 'js-view-photos';
+        link.setAttribute('data-photo-key', 'abc');
+        popupEl.appendChild(link);
+
+        const cities =
+        [
+            { city: 'Good1', country: 'X', lat: 10, lon: 20, photoKey: 123 } as unknown as MyCityDto,
+        ];
+
+        myCitiesStoreMock.emitCities(cities);
+
+        const popup = factory.createdPopups[0];
+        expect(popup).toBeDefined();
+
+        (popup.getElement as jasmine.Spy).and.returnValue(popupEl);
+
+        const handler = (popup.on as jasmine.Spy).calls.mostRecent().args[1] as () => void;
+        handler();
+
+        const clickEvent = new PointerEvent('click',
+        {
+            bubbles: true,
+            cancelable: true
+        });
+
+        spyOn(clickEvent, 'preventDefault');
+        spyOn(clickEvent, 'stopPropagation');
+
+        link.onclick?.(clickEvent);
+
+        expect(clickEvent.preventDefault).toHaveBeenCalled();
+        expect(clickEvent.stopPropagation).toHaveBeenCalled();
+        expect(debugLoggerMock.warn).toHaveBeenCalledWith('Invalid photo key in popup:', 'abc');
+        expect(dialogMock.open).not.toHaveBeenCalled();
     });
 
 });

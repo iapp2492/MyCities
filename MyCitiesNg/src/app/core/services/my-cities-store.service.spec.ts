@@ -1,16 +1,30 @@
 // my-cities-store.service.spec.ts
 
 import { TestBed } from '@angular/core/testing';
-import { BehaviorSubject, Subject, firstValueFrom, of, throwError } from 'rxjs';
+import { BehaviorSubject, Observable, Subject, firstValueFrom, of, throwError } from 'rxjs';
 import { take } from 'rxjs/operators';
 import { MyCitiesStoreService } from './my-cities-store.service';
 import { MyCitiesApiService } from '../services/my-cities-api.service';
 import { MyCityDto } from '../../../models/myCityDto';
 import { BasemapMode } from '../../../models/basemapMode';
+import { DebugLoggerService } from './debug-logger.service';
 
 class MyCitiesApiServiceMock
 {
     getAllCities = jasmine.createSpy('getAllCities');
+    getActivePhotoKeys = jasmine.createSpy('getActivePhotoKeys');
+}
+
+class DebugLoggerServiceMock
+{
+    public log = jasmine.createSpy('log');
+    public warn = jasmine.createSpy('warn');
+    public debugTap<T>(label: string, formatter?: (value: T) => unknown)
+    {
+        void label;
+        void formatter;
+        return (source: Observable<T>) => source;
+    }
 }
 
 function city(overrides: Partial<MyCityDto> & { city: string }): MyCityDto
@@ -40,14 +54,13 @@ describe('MyCitiesStoreService', () =>
             providers: [
                 MyCitiesStoreService,
                 { provide: MyCitiesApiService, useClass: MyCitiesApiServiceMock },
+                { provide: DebugLoggerService, useClass: DebugLoggerServiceMock },
             ],
         });
 
         service = TestBed.inject(MyCitiesStoreService);
         api = TestBed.inject(MyCitiesApiService) as unknown as MyCitiesApiServiceMock;
-
-        spyOn(console, 'log');
-        spyOn(console, 'warn');
+        api.getActivePhotoKeys.and.returnValue(of([]));
     });
 
     it('starts with empty state', async () =>
@@ -108,7 +121,8 @@ describe('MyCitiesStoreService', () =>
                 expect(api.getAllCities).toHaveBeenCalledTimes(1);
 
                 // should have warned about filtered out cities
-                expect(console.warn).toHaveBeenCalled();
+                const logger = TestBed.inject(DebugLoggerService) as unknown as DebugLoggerServiceMock;
+                expect(logger.warn).toHaveBeenCalled();
 
                 done();
             },
@@ -174,11 +188,10 @@ describe('MyCitiesStoreService', () =>
 
     it('ensureLoaded returns existing cities immediately without calling API again', async () =>
     {
-        api.getAllCities.and.returnValue(
-            new BehaviorSubject<MyCityDto[]>([
+        api.getAllCities.and.returnValue(of(
+            [
                 city({ city: 'A', lat: 1, lon: 2, stayDuration: '1 mo', decades: '1990s' }),
-            ]).asObservable()
-        );
+            ]));
 
         const first = await firstValueFrom(service.ensureLoaded());
         expect(first.map(x => x.city)).toEqual(['A']);
@@ -202,14 +215,13 @@ describe('MyCitiesStoreService', () =>
 
                 // now set up a successful retry
                 api.getAllCities.calls.reset();
-                api.getAllCities.and.returnValue(
-                    new BehaviorSubject<MyCityDto[]>([
-                        city({ city: 'OK', lat: 1, lon: 2, stayDuration: '1 mo', decades: '2000s' }),
-                    ]).asObservable()
-                );
+               api.getAllCities.and.returnValue(of(
+                    [
+                        city({ city: 'B', lat: 3, lon: 4, stayDuration: '2 mos', decades: '2000s' }),
+                    ]));
 
                 const cities = await firstValueFrom(service.ensureLoaded());
-                expect(cities.map(x => x.city)).toEqual(['OK']);
+                expect(cities.map(x => x.city)).toEqual(['B']);
                 expect(api.getAllCities).toHaveBeenCalledTimes(1);
 
                 done();
@@ -217,23 +229,23 @@ describe('MyCitiesStoreService', () =>
         });
     });
 
-     it('refresh clears cached data and forces a reload', async () =>
+    it('refresh clears cached data and forces a reload', async () =>
     {
-        api.getAllCities.and.returnValue(
-            new BehaviorSubject<MyCityDto[]>([
+        api.getAllCities.and.returnValue(of(
+            [
                 city({ city: 'A', lat: 1, lon: 2, stayDuration: '1 mo', decades: '1990s' }),
-            ]).asObservable()
-        );
+            ]
+        ));
 
         await firstValueFrom(service.ensureLoaded());
         expect(api.getAllCities).toHaveBeenCalledTimes(1);
 
         api.getAllCities.calls.reset();
-        api.getAllCities.and.returnValue(
-            new BehaviorSubject<MyCityDto[]>([
+        api.getAllCities.and.returnValue(of(
+            [
                 city({ city: 'B', lat: 3, lon: 4, stayDuration: '2 mos', decades: '2000s' }),
-            ]).asObservable()
-        );
+            ]
+        ));
 
         const refreshed = await firstValueFrom(service.refresh());
         expect(refreshed.map(x => x.city)).toEqual(['B']);

@@ -1,12 +1,29 @@
-import { MapHintPresenter, MapHintService} from './map-hint.service';
+import { TestBed } from '@angular/core/testing';
+import { MapHintPresenter, MapHintService } from './map-hint.service';
+import { DebugLoggerService } from './debug-logger.service';
 
 describe('MapHintService', () =>
 {
     let service: MapHintService;
+    let debugLoggerSpy: jasmine.SpyObj<DebugLoggerService>;
 
     beforeEach(() =>
     {
-        service = new MapHintService();
+        debugLoggerSpy = jasmine.createSpyObj<DebugLoggerService>(
+            'DebugLoggerService',
+            ['error']
+        );
+
+        TestBed.configureTestingModule(
+        {
+            providers:
+            [
+                MapHintService,
+                { provide: DebugLoggerService, useValue: debugLoggerSpy }
+            ]
+        });
+
+        service = TestBed.inject(MapHintService);
     });
 
     describe('shouldShow', () =>
@@ -62,7 +79,7 @@ describe('MapHintService', () =>
         it('returns false when lastShownUtc is within the cooldown window', () =>
         {
             const now = 1_000_000_000;
-            const withinCooldown = now - 1000; // 1 second ago
+            const withinCooldown = now - 1000;
 
             spyOn(Date, 'now').and.returnValue(now);
 
@@ -89,8 +106,6 @@ describe('MapHintService', () =>
         it('returns true when lastShownUtc is older than the cooldown window', () =>
         {
             const now = 1_000_000_000;
-
-            // cooldown is 7 days; go older than that
             const eightDaysMs = 8 * 24 * 60 * 60 * 1000;
             const olderThanCooldown = now - eightDaysMs;
 
@@ -119,16 +134,14 @@ describe('MapHintService', () =>
         it('returns true and logs when localStorage.getItem throws', () =>
         {
             spyOn(localStorage, 'getItem').and.throwError('boom');
-            const consoleSpy = spyOn(console, 'error').and.stub();
 
             const result = service.shouldShow('google');
 
             expect(result).toBeTrue();
-            expect(consoleSpy).toHaveBeenCalled();
+            expect(debugLoggerSpy.error).toHaveBeenCalled();
 
-            const args = consoleSpy.calls.argsFor(0);
-            expect(String(args[0])).toContain('shouldShow');
-            expect(args[1] instanceof Error).toBeTrue();
+            const args = debugLoggerSpy.error.calls.argsFor(0);
+            expect(String(args[0])).toContain('Error checking shouldShow in map hint service:');
         });
 
         it('returns true when stored values are non-numeric', () =>
@@ -150,7 +163,6 @@ describe('MapHintService', () =>
 
             const result = service.shouldShow('mapbox');
 
-            // Non-numeric lastShownUtc is treated as null -> show
             expect(result).toBeTrue();
         });
     });
@@ -171,22 +183,25 @@ describe('MapHintService', () =>
         it('logs and does not throw when localStorage.setItem throws', () =>
         {
             spyOn(localStorage, 'setItem').and.throwError('boom');
-            const consoleSpy = spyOn(console, 'error');
 
             expect(() => service.markShown('leaflet')).not.toThrow();
-            expect(consoleSpy).toHaveBeenCalled();
+            expect(debugLoggerSpy.error).toHaveBeenCalled();
+
+            const args = debugLoggerSpy.error.calls.argsFor(0);
+            expect(String(args[0])).toContain('Error marking hint as shown in map hint service:');
         });
     });
 
     describe('showOnceIfNeeded', () =>
     {
-        it('shows the hint and marks it shown (current behavior with shouldShow guard commented out)', () =>
+        it('shows the hint and marks it shown when shouldShow returns true', () =>
         {
             const presenter: MapHintPresenter =
             {
                 showHint: jasmine.createSpy('showHint')
             };
 
+            spyOn(service, 'shouldShow').and.returnValue(true);
             const markSpy = spyOn(service, 'markShown').and.callThrough();
 
             service.showOnceIfNeeded('google', presenter);
@@ -195,7 +210,7 @@ describe('MapHintService', () =>
             expect(markSpy).toHaveBeenCalledWith('google');
         });
 
-        xit('does not show the hint when shouldShow returns false (enable after uncommenting guard)', () =>
+        it('does not show the hint when shouldShow returns false', () =>
         {
             const presenter: MapHintPresenter =
             {

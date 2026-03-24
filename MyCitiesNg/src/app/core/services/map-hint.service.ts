@@ -1,4 +1,5 @@
-import { Injectable} from '@angular/core';
+import { inject, Injectable} from '@angular/core';
+import { DebugLoggerService } from './debug-logger.service';
 
 export type MapEngine = 'mapbox' | 'leaflet' | 'google';
 
@@ -9,7 +10,9 @@ export interface MapHintPresenter
 
 @Injectable({ providedIn: 'root' })
 export class MapHintService
-{
+{    
+    private readonly debugLogger = inject(DebugLoggerService);
+
     private readonly storagePrefix = 'mycities.mapHint';
     private readonly currentVersion = 1;
 
@@ -59,7 +62,7 @@ export class MapHintService
         {
             // In case of any error (e.g. localStorage access issues), default to showing the hint but avoid throwing.
             // Better to show repeatedly than never show
-            console.error('Error checking shouldShow in map hint service:', error);
+            this.debugLogger.error('Error checking shouldShow in map hint service:', error);
             return true;
         }
     }
@@ -78,7 +81,7 @@ export class MapHintService
         catch (error)        
         {
             // In case of any error (e.g. localStorage access issues), log the error but avoid throwing.
-            console.error('Error marking hint as shown in map hint service:', error);
+            this.debugLogger.error('Error marking hint as shown in map hint service:', error);
         }
     }
 

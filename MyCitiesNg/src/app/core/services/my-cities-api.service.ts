@@ -4,6 +4,7 @@ import { Observable } from 'rxjs';
 import { MyCityDto } from "../../../models/myCityDto";
 import { API_BASE_URL } from "../tokens/api-base-url.token";
 import { MyCityPhotosResponseDto } from "../../../models/MyCityPhotosResponseDto";
+import { DebugLoggerService } from "./debug-logger.service";
 
 @Injectable({
     providedIn: 'root'
@@ -13,8 +14,8 @@ export class MyCitiesApiService
     private readonly apiBaseUrl = inject(API_BASE_URL);
 
     // Dependency injections
-    // private logger = inject(LoggerService);
     private http = inject(HttpClient);
+    private readonly debugLogger = inject(DebugLoggerService);
 
     // https://localhost:7127/api/MyCities/GetAllCities 
     getAllCities(): Observable<MyCityDto[]> 
@@ -27,7 +28,7 @@ export class MyCitiesApiService
     // https://localhost:7127/api/MyCities/GetAllPhotos
     getAllPhotos(): Observable<MyCityPhotosResponseDto[]> 
     {
-        console.log('MyCitiesApiService: Calling getAllPhotos API');
+        this.debugLogger.log('MyCitiesApiService: Calling getAllPhotos API');
         const url = `${this.apiBaseUrl}MyCities/GetAllPhotos`;
         return this.http.get<MyCityPhotosResponseDto[]>(url);
     }

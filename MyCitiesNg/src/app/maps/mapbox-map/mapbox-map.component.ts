@@ -1,6 +1,6 @@
 import { AfterViewInit, Component, DestroyRef, inject, OnDestroy } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { filter, tap } from 'rxjs';
+import { filter } from 'rxjs';
 import '../../core/config/mapbox-init'; 
 import { MyCitiesStoreService} from '../../core/services/my-cities-store.service';
 import { MyCityDto } from '../../../models/myCityDto'; 
@@ -10,10 +10,10 @@ import { MAPBOX_FACTORY } from '../../core/map/mapbox.factory';
 import { MapHintService } from '../../core/services/map-hint.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { CityPopupHtmlService } from '../../core/services/city-popup-html.service';
-import { isDevMode } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
 import { PhotoViewerDialogComponent } from '../../photo-viewer/photo-viewer-dialog.component';
 import { CommonModule } from '@angular/common';
+import { DebugLoggerService } from '../../core/services/debug-logger.service';
 
 @Component({
   selector: 'app-mapbox-map',
@@ -31,6 +31,7 @@ export class MapboxMapComponent implements AfterViewInit, OnDestroy
     private readonly snackBar = inject(MatSnackBar);
     private readonly popupHtml = inject(CityPopupHtmlService);
     private readonly dialog = inject(MatDialog);
+    private readonly debugLogger = inject(DebugLoggerService);
 
     private map?: mapboxgl.Map;
     private markers: mapboxgl.Marker[] = [];
@@ -86,7 +87,7 @@ export class MapboxMapComponent implements AfterViewInit, OnDestroy
         // 2) Render markers based on filteredCities$ (filters affect map automatically)
         this.citiesStore.filteredCities$
         .pipe(
-            this.debugLog<MyCityDto[] | null>('filteredCities$ emitted:'),
+            this.debugLogger.debugTap<MyCityDto[] | null>('filteredCities$ emitted:'),
             takeUntilDestroyed(this.destroyRef),
             filter((cities): cities is MyCityDto[] => Array.isArray(cities))
         )
@@ -98,17 +99,6 @@ export class MapboxMapComponent implements AfterViewInit, OnDestroy
                 return;
             }
             this.renderMarkers(cities);
-        });
-    }
-
-    private debugLog<T>(label: string)
-    {
-        return tap<T>(value =>
-        {
-            if (isDevMode())
-            {
-                console.log(label, value);
-            }
         });
     }
 
@@ -249,14 +239,14 @@ export class MapboxMapComponent implements AfterViewInit, OnDestroy
             // Skip bad coordinates BEFORE doing anything else
             if (!Number.isFinite(lat) || !Number.isFinite(lon))
             {
-                // Available for debugging: console.log('Skipping city with invalid coordinates: ' + city);
+                this.debugLogger.log('Skipping city with invalid coordinates: ' + city);
                 continue;
             }
 
             const el = this.createMarkerElement();
 
             const hasPhotos = this.citiesStore.hasPhotos(city.photoKey);
-            // Available for debugging: console.log(`City "${city.city}" hasPhotos=${hasPhotos}`); // Debug log to verify photo availability
+            this.debugLogger.log(`City "${city.city}" hasPhotos=${hasPhotos}`); // Debug log to verify photo availability
             const popupHtml = this.popupHtml.build(city, hasPhotos);
 
             const popup = this.mapbox.createPopup(
@@ -290,10 +280,7 @@ export class MapboxMapComponent implements AfterViewInit, OnDestroy
 
                     if (!Number.isFinite(photoKey) || photoKey <= 0)
                     {
-                        if (isDevMode())
-                        {
-                            console.warn('Invalid photo key in popup:', raw);
-                        }
+                        this.debugLogger.warn('Invalid photo key in popup:', raw);
                         return;
                     }
 

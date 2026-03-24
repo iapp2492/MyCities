@@ -5,6 +5,7 @@ import { MyCitiesApiService } from '../core/services/my-cities-api.service';
 import { MyCityPhotosResponseDto } from '../../models/MyCityPhotosResponseDto';
 import { Output, EventEmitter } from '@angular/core';
 import { ElementRef } from '@angular/core';
+import { DebugLoggerService } from '../core/services/debug-logger.service';
 
 export interface PhotoVm
 {
@@ -64,12 +65,13 @@ export class PhotoViewerComponent implements OnChanges, OnDestroy, AfterViewInit
 
     private readonly destroyed$: Subject<void> = new Subject<void>();
     private readonly api = inject(MyCitiesApiService);
+    private readonly debugLogger = inject(DebugLoggerService);
 
     private readonly cdr = inject(ChangeDetectorRef);
 
     public constructor()
     {
-        console.log('PhotoViewerComponent constructed');
+        this.debugLogger.log('PhotoViewerComponent constructed');
     }
 
     public ngAfterViewInit(): void
@@ -131,7 +133,12 @@ export class PhotoViewerComponent implements OnChanges, OnDestroy, AfterViewInit
 
         const key = Number(this.photoKey);
 
-        console.log('PhotoViewerComponent.ngOnChanges photoKey =', this.photoKey, 'parsed =', key);
+        this.debugLogger.log(
+            'PhotoViewerComponent.ngOnChanges',
+            {
+                photoKey: this.photoKey,
+                parsedKey: key
+            });
 
         if (!Number.isFinite(key) || key <= 0)
         {
@@ -149,18 +156,18 @@ export class PhotoViewerComponent implements OnChanges, OnDestroy, AfterViewInit
         this.errorMessage = '';
         this.photos = [];
 
-        console.log(`PhotoViewerComponent.load(${photoKey}) calling api...`);
+        this.debugLogger.log(`PhotoViewerComponent.load(${photoKey}) calling api...`);
 
         this.api.getAllPhotos()
             .pipe(takeUntil(this.destroyed$))
             .subscribe({
                 next: (groups: MyCityPhotosResponseDto[]) =>
                 {
-                    console.log('getAllPhotos returned groups:', groups);
+                    this.debugLogger.log('getAllPhotos returned groups:', groups);
 
                     const group = groups.find(g => g.photoKey === photoKey);
 
-                    console.log('matched group:', group);
+                    this.debugLogger.log('matched group:', group);
 
                     if (!group || group.photos.length === 0)
                     {
@@ -184,7 +191,7 @@ export class PhotoViewerComponent implements OnChanges, OnDestroy, AfterViewInit
                             };
                         });
 
-                    console.log('final photos VM:', this.photos);
+                    this.debugLogger.log('final photos VM:', this.photos);
                     this.currentIndex = 0;
                     this.captionChanged.emit(this.photos[0]?.caption ?? '');
 
@@ -197,7 +204,7 @@ export class PhotoViewerComponent implements OnChanges, OnDestroy, AfterViewInit
                 },
                 error: (err: unknown) =>
                 {
-                    console.error('getAllPhotos error:', err);
+                    this.debugLogger.error('getAllPhotos error:', err);
                     this.isLoading = false;
                     this.errorMessage = 'Failed to load photos.';
                 }
@@ -219,7 +226,7 @@ export class PhotoViewerComponent implements OnChanges, OnDestroy, AfterViewInit
         // Your actual file structure: assets/images/cities/{photoKey}/{photoKey}-{photoIndex}.jpg
         const folder = `assets/images/cities/${photoKey}`;
         const url = `${folder}/${fileNameFromDb}`;
-        console.log(`Building photo URL for photoKey=${photoKey}, fileNameFromDb="${fileNameFromDb}": ${url}`); 
+        this.debugLogger.log(`Building photo URL for photoKey=${photoKey}, fileNameFromDb="${fileNameFromDb}": ${url}`); 
         return url;
     }
 
@@ -372,7 +379,7 @@ export class PhotoViewerComponent implements OnChanges, OnDestroy, AfterViewInit
     {
         // Keep this for now; remove later when done debugging.
          
-        console.log(message);
+        this.debugLogger.log(message);
     }
         
     public ngOnDestroy(): void

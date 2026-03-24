@@ -3,11 +3,14 @@ import { provideHttpClientTesting, HttpTestingController } from '@angular/common
 import { MyCitiesApiService } from './my-cities-api.service';
 import { MyCityDto } from '../../../models/myCityDto';
 import { API_BASE_URL } from '../tokens/api-base-url.token';
+import { MyCityPhotosResponseDto } from '../../../models/MyCityPhotosResponseDto';
+import { DebugLoggerService } from './debug-logger.service';
 
 describe('MyCitiesApiService', () =>
 {
     let service: MyCitiesApiService;
     let httpMock: HttpTestingController;
+    const baseUrl = 'https://example.test/api/';
 
     beforeEach(() =>
     {
@@ -18,7 +21,16 @@ describe('MyCitiesApiService', () =>
                 provideHttpClient(),
                 provideHttpClientTesting(),
                 MyCitiesApiService,
-                { provide: API_BASE_URL, useValue: 'https://example.test/api/' }
+                { provide: API_BASE_URL, useValue: baseUrl },
+                {
+                    provide: DebugLoggerService,
+                    useValue:
+                    {
+                        log: jasmine.createSpy('log'),
+                        warn: jasmine.createSpy('warn'),
+                        error: jasmine.createSpy('error')
+                    }
+                }
             ]
         });
 
@@ -86,4 +98,50 @@ describe('MyCitiesApiService', () =>
 
         expect(actual).toEqual(mockCities);
     });
+
+    it('getAllPhotos should call the GetAllPhotos endpoint and return the response', () =>
+    {
+        const mockResponse: MyCityPhotosResponseDto[] =
+        [
+            {
+                photoKey: 1,
+                photos:
+                [
+                    {
+                        photoKey: 1,
+                        photoIndex: 1,
+                        sortOrder: 1,
+                        title: 'Main photo',
+                        caption: 'Caption 1',
+                        fileName: 'photo1.jpg',
+                        url: 'https://example.test/photos/photo1.jpg'
+                    }
+                ]
+            }
+        ];
+
+        service.getAllPhotos().subscribe((response) =>
+        {
+            expect(response).toEqual(mockResponse);
+        });
+
+        const req = httpMock.expectOne(`${baseUrl}MyCities/GetAllPhotos`);
+        expect(req.request.method).toBe('GET');
+        req.flush(mockResponse);
+    });
+
+    it('getActivePhotoKeys should call the GetActivePhotoKeys endpoint and return the response', () =>
+    {
+        const mockResponse: number[] = [1, 2, 5, 9];
+
+        service.getActivePhotoKeys().subscribe((response) =>
+        {
+            expect(response).toEqual(mockResponse);
+        });
+
+        const req = httpMock.expectOne(`${baseUrl}MyCities/GetActivePhotoKeys`);
+        expect(req.request.method).toBe('GET');
+        req.flush(mockResponse);
+    });
+
 });

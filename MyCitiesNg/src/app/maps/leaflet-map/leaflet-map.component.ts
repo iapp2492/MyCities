@@ -1,4 +1,4 @@
-import { AfterViewInit, Component, inject, DestroyRef, OnDestroy, isDevMode } from '@angular/core';
+import { AfterViewInit, Component, inject, DestroyRef, OnDestroy } from '@angular/core';
 import * as L from 'leaflet';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MyCitiesStoreService } from '../../core/services/my-cities-store.service';
@@ -12,7 +12,7 @@ import { CityPopupHtmlService } from '../../core/services/city-popup-html.servic
 import { Router } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
 import { PhotoViewerDialogComponent } from '../../photo-viewer/photo-viewer-dialog.component';
-import { tap } from 'rxjs';
+import { DebugLoggerService } from '../../core/services/debug-logger.service';
 
 @Component({
     selector: 'app-leaflet-map',
@@ -29,6 +29,7 @@ export class LeafletMapComponent implements AfterViewInit, OnDestroy
     private readonly popupHtml = inject(CityPopupHtmlService);
     private readonly router = inject(Router);
     private readonly dialog = inject(MatDialog);
+    private readonly debugLogger = inject(DebugLoggerService);
 
     private map?: L.Map;
     private markerLayer = L.layerGroup();
@@ -160,18 +161,13 @@ export class LeafletMapComponent implements AfterViewInit, OnDestroy
             // Skip bad coordinates BEFORE doing anything else
             if (!Number.isFinite(lat) || !Number.isFinite(lon))
             {
-                console.warn('Skipping city with invalid coordinates:', city);
+                this.debugLogger.warn('Skipping city with invalid coordinates:', city);
                 skipped++;
                 continue;
             }
             
-            if (skipped > 0)
-            {
-                console.warn(`Skipped ${skipped} cities due to invalid coordinates`);
-            }
-
             const hasPhotos = this.citiesStore.hasPhotos(city.photoKey);
-            // Available for debugging: console.log(`City "${city.city}" hasPhotos=${hasPhotos}`); // Debug log to verify photo availability
+            this.debugLogger.log(`City "${city.city}" hasPhotos=${hasPhotos}`); // Debug log to verify photo availability
             const popupHtml = this.popupHtml.build(city, hasPhotos);
 
             const marker = L.marker(
@@ -212,11 +208,11 @@ export class LeafletMapComponent implements AfterViewInit, OnDestroy
 
                     if (!Number.isFinite(photoKey) || photoKey <= 0)
                     {
-                        console.warn('Invalid photo key in popup:', raw);
+                        this.debugLogger.warn('Invalid photo key in popup:', raw);
                         return;
                     }
 
-                    // Available for debugging console.log('Opening photo dialog for key', photoKey);
+                    this.debugLogger.log('Opening photo dialog for key', photoKey);
                     
                     this.dialog.open(PhotoViewerDialogComponent,
                     {
@@ -258,6 +254,11 @@ export class LeafletMapComponent implements AfterViewInit, OnDestroy
             bounds.extend(marker.getLatLng());
         }
 
+        if (skipped > 0)
+        {
+            this.debugLogger.warn(`Skipped ${skipped} cities due to invalid coordinates`);
+        }
+
         this.map.fitBounds(bounds, { padding: [50, 50] });
         this.updateTooltipVisibility();
     }
@@ -268,7 +269,7 @@ export class LeafletMapComponent implements AfterViewInit, OnDestroy
         // Ensure load kicks off (and cached thereafter)
         this.citiesStore.ensureLoaded()
             .pipe(takeUntilDestroyed(this.destroyRef))
-            .subscribe({ error: err => console.error('Failed to load cities', err) });
+            .subscribe({ error: err => this.debugLogger.error('Failed to load cities', err) });
        
         // Reactively redraw whenever filters change
         this.citiesStore.filteredCities$
@@ -380,18 +381,7 @@ export class LeafletMapComponent implements AfterViewInit, OnDestroy
         };
 
     };
-    
-    private debugLog<T>(label: string)
-    {
-        return tap<T>(value =>
-        {
-            if (isDevMode())
-            {
-                console.log(label, value);
-            }
-        });
-    }
-
+  
     ngOnDestroy(): void 
     {
         // Stop future work (extra defensive; takeUntilDestroyed already handles streams)

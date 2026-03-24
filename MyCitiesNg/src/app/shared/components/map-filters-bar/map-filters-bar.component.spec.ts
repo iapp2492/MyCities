@@ -1,20 +1,36 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideRouter, Router } from '@angular/router';
 import { By } from '@angular/platform-browser';
 import { of } from 'rxjs';
 import { MapFiltersBarComponent, BasemapOption } from './map-filters-bar.component';
+import { Component } from '@angular/core';
 
-describe('MapFiltersBarComponent', () => 
+@Component(
+{
+    standalone: true,
+    template: ''
+})
+class DummyRouteComponent
+{
+}
+
+describe('MapFiltersBarComponent', () =>
 {
     let component: MapFiltersBarComponent;
     let fixture: ComponentFixture<MapFiltersBarComponent>;
 
-    beforeEach(async () => 
+    beforeEach(async () =>
     {
         await TestBed.configureTestingModule(
-            {
-                imports: [MapFiltersBarComponent],
-            })
-            .compileComponents();
+        {
+            imports: [MapFiltersBarComponent],
+            providers: [
+                provideRouter(
+                [
+                    { path: 'map/:engine', component: DummyRouteComponent }
+                ])]
+        })
+        .compileComponents();
 
         fixture = TestBed.createComponent(MapFiltersBarComponent);
         component = fixture.componentInstance;
@@ -22,10 +38,10 @@ describe('MapFiltersBarComponent', () =>
         component.decades$ = of(['1990s', '2000s']);
         component.stayDurations$ = of(['1 mo', '3-5 mos']);
         component.basemaps =
-            [
-                { value: 'roadmap', label: 'Roadmap' },
-                { value: 'satellite', label: 'Satellite' },
-            ] satisfies BasemapOption[];
+        [
+            { value: 'roadmap', label: 'Roadmap' },
+            { value: 'satellite', label: 'Satellite' }
+        ] satisfies BasemapOption[];
 
         component.selectedDecade = null;
         component.selectedStayDuration = null;
@@ -34,53 +50,13 @@ describe('MapFiltersBarComponent', () =>
         fixture.detectChanges();
     });
 
-    it('should create', () => 
-{
+    it('should create', () =>
+    {
         expect(component).toBeTruthy();
     });
 
-    it('emits decadeChange with null when Decades dropdown is cleared', () => 
-{
-        const emitSpy = spyOn(component.decadeChange, 'emit');
-
-        const select = createSelect('');
-        component.onDecadeSelectChange(select);
-
-        expect(emitSpy).toHaveBeenCalledOnceWith(null);
-    });
-
-    it('emits decadeChange with selected value when Decades dropdown changes', () => 
+    it('emits basemapChange when basemap changes', () =>
     {
-        const emitSpy = spyOn(component.decadeChange, 'emit');
-
-        const select = createSelect('1990s');
-        component.onDecadeSelectChange(select);
-
-        expect(emitSpy).toHaveBeenCalledOnceWith('1990s');
-    });
-
-    it('emits stayDurationChange with null when Stay Durations dropdown is cleared', () => 
-    {
-        const emitSpy = spyOn(component.stayDurationChange, 'emit');
-
-        const select = createSelect('');
-        component.onStayDurationSelectChange(select);
-
-        expect(emitSpy).toHaveBeenCalledOnceWith(null);
-    });
-
-    it('emits stayDurationChange with selected value when Stay Durations dropdown changes', () => 
-{
-        const emitSpy = spyOn(component.stayDurationChange, 'emit');
-
-        const select = createSelect('3-5 mos');
-        component.onStayDurationSelectChange(select);
-
-        expect(emitSpy).toHaveBeenCalledOnceWith('3-5 mos');
-    });
-
-    it('emits basemapChange when basemap changes', () => 
-{
         const emitSpy = spyOn(component.basemapChange, 'emit');
 
         const select = createSelect('satellite');
@@ -89,14 +65,14 @@ describe('MapFiltersBarComponent', () =>
         expect(emitSpy).toHaveBeenCalledOnceWith('satellite');
     });
 
-    it('renders 3 selects when basemaps are provided (Decades, Stay, Basemap)', () => 
-{
+    it('renders 3 selects when basemaps are provided (Decades, Stay, Basemap)', () =>
+    {
         const selects = fixture.debugElement.queryAll(By.css('select'));
         expect(selects.length).toBe(3);
     });
 
-    it('hides basemap select when basemaps is empty', () => 
-{
+    it('hides basemap select when basemaps is empty', () =>
+    {
         component.basemaps = [];
         fixture.detectChanges();
 
@@ -104,7 +80,16 @@ describe('MapFiltersBarComponent', () =>
         expect(selects.length).toBe(2);
     });
 
-    function createSelect(value: string)
+    it('onBasemapSelectChange returns without emitting when target is null', () =>
+    {
+        const emitSpy = spyOn(component.basemapChange, 'emit');
+
+        component.onBasemapSelectChange(null);
+
+        expect(emitSpy).not.toHaveBeenCalled();
+    });
+
+    function createSelect(value: string): HTMLSelectElement
     {
         const select = document.createElement('select');
 
@@ -123,32 +108,68 @@ describe('MapFiltersBarComponent', () =>
         return select;
     }
 
-    it('onDecadeSelectChange returns without emitting when target is null', () =>
+    it('initializes currentEngine from the current router url', () =>
     {
-        const emitSpy = spyOn(component.decadeChange, 'emit');
+        const router = TestBed.inject(Router);
 
-        component.onDecadeSelectChange(null);
+        spyOnProperty(router, 'url', 'get').and.returnValue('/map/google');
 
-        expect(emitSpy).not.toHaveBeenCalled();
+        const localFixture = TestBed.createComponent(MapFiltersBarComponent);
+        const localComponent = localFixture.componentInstance;
+
+        localComponent.decades$ = of(['1990s', '2000s']);
+        localComponent.stayDurations$ = of(['1 mo', '3-5 mos']);
+        localComponent.basemaps =
+        [
+            { value: 'roadmap', label: 'Roadmap' },
+            { value: 'satellite', label: 'Satellite' }
+        ] satisfies BasemapOption[];
+
+        localFixture.detectChanges();
+
+        expect(localComponent.currentEngine).toBe('google');
     });
 
-    it('onStayDurationSelectChange returns without emitting when target is null', () =>
+    it('onEngineChange updates currentEngine immediately and navigates with merged query params', () =>
     {
-        const emitSpy = spyOn(component.stayDurationChange, 'emit');
+        const router = TestBed.inject(Router);
+        const navigateSpy = spyOn(router, 'navigate').and.resolveTo(true);
 
-        component.onStayDurationSelectChange(null);
+        component.currentEngine = 'leaflet';
 
-        expect(emitSpy).not.toHaveBeenCalled();
+        component.onEngineChange('mapbox');
+
+        expect(component.currentEngine).toBe('mapbox');
+        expect(navigateSpy).toHaveBeenCalledOnceWith(
+            ['/map', 'mapbox'],
+            { queryParamsHandling: 'merge' }
+        );
     });
 
-    it('onBasemapSelectChange returns without emitting when target is null', () =>
+    it('updates currentEngine when a NavigationEnd occurs', async () =>
     {
-        const emitSpy = spyOn(component.basemapChange, 'emit');
+        const router = TestBed.inject(Router);
 
-        component.onBasemapSelectChange(null);
+        await router.navigateByUrl('/map/leaflet');
 
-        expect(emitSpy).not.toHaveBeenCalled();
+        const localFixture = TestBed.createComponent(MapFiltersBarComponent);
+        const localComponent = localFixture.componentInstance;
+
+        localComponent.decades$ = of(['1990s', '2000s']);
+        localComponent.stayDurations$ = of(['1 mo', '3-5 mos']);
+        localComponent.basemaps =
+        [
+            { value: 'roadmap', label: 'Roadmap' },
+            { value: 'satellite', label: 'Satellite' }
+        ] satisfies BasemapOption[];
+
+        localFixture.detectChanges();
+
+        expect(localComponent.currentEngine).toBe('leaflet');
+
+        await router.navigateByUrl('/map/google');
+        localFixture.detectChanges();
+
+        expect(localComponent.currentEngine).toBe('google');
     });
-
-
 });

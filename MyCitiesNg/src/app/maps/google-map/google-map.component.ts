@@ -1,6 +1,6 @@
-import { AfterViewInit, Component, DestroyRef, inject, isDevMode, OnDestroy } from '@angular/core';
+import { AfterViewInit, Component, DestroyRef, inject, OnDestroy } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { filter, tap } from 'rxjs';
+import { filter } from 'rxjs';
 import { GoogleMapsLoaderService } from '../../core/services/google-maps-loader.service';
 import { MyCitiesStoreService} from '../../core/services/my-cities-store.service';
 import { MyCityDto } from '../../../models/myCityDto'; 
@@ -13,6 +13,7 @@ import { CityPopupHtmlService } from '../../core/services/city-popup-html.servic
 import { MatDialog } from '@angular/material/dialog';
 import { PhotoViewerDialogComponent } from '../../photo-viewer/photo-viewer-dialog.component';
 import { CommonModule } from '@angular/common';
+import { DebugLoggerService } from '../../core/services/debug-logger.service';
 
 
 @Component({
@@ -31,6 +32,7 @@ export class GoogleMapComponent  implements AfterViewInit, OnDestroy
     private readonly snackBar = inject(MatSnackBar);
     private readonly popupHtml = inject(CityPopupHtmlService);
     private readonly dialog = inject(MatDialog);
+    private readonly debugLogger = inject(DebugLoggerService);
 
     private map?: google.maps.Map;
     private markers: google.maps.marker.AdvancedMarkerElement[] = [];
@@ -95,7 +97,7 @@ export class GoogleMapComponent  implements AfterViewInit, OnDestroy
         // 2) Render markers based on filteredCities$ (filters affect map automatically)
         this.citiesStore.filteredCities$
         .pipe(
-            this.debugLog<MyCityDto[] | null>('filteredCities$ emitted:'),
+            this.debugLogger.debugTap<MyCityDto[] | null>('filteredCities$ emitted:'),
             takeUntilDestroyed(this.destroyRef),
             filter((cities): cities is MyCityDto[] => Array.isArray(cities))
         )
@@ -109,18 +111,7 @@ export class GoogleMapComponent  implements AfterViewInit, OnDestroy
             this.renderMarkers(cities);
         });
     }
-    
-    private debugLog<T>(label: string)
-    {
-        return tap<T>(value =>
-        {
-            if (isDevMode())
-            {
-                console.log(label, value);
-            }
-        });
-    }
-
+  
     private async initMapOnce(): Promise<void> 
     {
         const mapEl = document.getElementById('googleMap') as HTMLElement | null;
@@ -129,8 +120,6 @@ export class GoogleMapComponent  implements AfterViewInit, OnDestroy
         {
             return;
         }
-
-        this.mapsLoader.setOptions({ key: environment.googleMapsApiKey, v: 'weekly' });
 
         const { Map } = await this.mapsLoader.importLibrary('maps') as google.maps.MapsLibrary;
         await this.mapsLoader.importLibrary('marker');
@@ -195,10 +184,7 @@ export class GoogleMapComponent  implements AfterViewInit, OnDestroy
     
     private openPhotoViewer(photoKey: string): void
     {
-        if (isDevMode())
-        {
-            console.log(`Opening photo dialog for photoKey: ${photoKey}`);
-        }
+        this.debugLogger.log(`Opening photo dialog for photoKey: ${photoKey}`);
 
         this.dialog.open(PhotoViewerDialogComponent,
         {
@@ -215,7 +201,7 @@ export class GoogleMapComponent  implements AfterViewInit, OnDestroy
         
     private renderMarkers(cities: MyCityDto[]): void 
     {
-        // Available for debugging: console.log('Rendering markers for cities in the renderMarkers method:', cities);
+        this.debugLogger.log('Rendering markers for cities in the renderMarkers method:', cities);
         if (!this.map) 
         {
             return;
@@ -253,7 +239,7 @@ export class GoogleMapComponent  implements AfterViewInit, OnDestroy
                 this.infoWindow?.open({ map: this.map!, anchor: marker });
             });
 
-            // Available for debugging: console.log(`Placing marker for ${city.city} at (${city.lat}, ${city.lon})`);
+            this.debugLogger.log(`Placing marker for ${city.city} at (${city.lat}, ${city.lon})`);
 
             this.markers.push(marker);
                 bounds.extend({ lat: city.lat, lng: city.lon });

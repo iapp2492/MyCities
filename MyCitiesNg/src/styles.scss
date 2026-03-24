@@ -7,10 +7,6 @@
 @use './styles/_mycities-themes' as ktr;
 @use './styles/styles_theme-colors' as themeColors;
 @import 'mapbox-gl/dist/mapbox-gl.css';
-@import 'swiper/css';
-@import 'swiper/css/navigation';
-@import 'swiper/css/pagination';
-
 
 @include mat.core();
 
