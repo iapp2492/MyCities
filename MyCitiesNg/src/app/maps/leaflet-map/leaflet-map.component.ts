@@ -38,21 +38,23 @@ export class LeafletMapComponent implements AfterViewInit, OnDestroy
 
     private readonly MARKER_OPACITY = 0.70;
     private readonly TOOLTIP_MIN_ZOOM = 6;  // show tooltips at this zoom level or higher
+    private readonly FIT_BOUNDS_MAX_ZOOM = 6;
     private markersWithTooltips: L.Marker[] = [];
 
     stayDurations$ = this.citiesStore.stayDurations$;
     decades$ = this.citiesStore.decades$;
+    locations$ = this.citiesStore.locations$;
     readonly selectedStayDuration$ = this.citiesStore.stayDurationFilter$;
     readonly selectedDecade$ = this.citiesStore.decadeFilter$;
+    readonly selectedLocation$ = this.citiesStore.locationFilter$;
 
     basemaps: BasemapOption[] =
         [
-            { value: 'standard', label: 'Standard' },
+            { value: 'standard', label: 'Standard Map Style' },
             { value: 'humanitarian', label: 'OSM Humanitarian' },
             { value: 'opentopo', label: 'OpenTopoMap' },
             { value: 'esristreet', label: 'Esri World Street' },
             { value: 'esriworldimagery', label: 'Esri World Imagery' },
-            { value: 'wikimedia', label: 'Wikimedia' },
         ];
 
     selectedBasemap: string | null = 'standard';
@@ -60,6 +62,11 @@ export class LeafletMapComponent implements AfterViewInit, OnDestroy
     onDecadeChange(value: string | null): void 
     {  
         this.citiesStore.setDecadeFilter(value);
+    }
+    
+    onLocationChange(value: string | null): void
+    {
+        this.citiesStore.setLocationFilter(value);
     }
 
     onStayChange(value: string | null): void 
@@ -259,7 +266,11 @@ export class LeafletMapComponent implements AfterViewInit, OnDestroy
             this.debugLogger.warn(`Skipped ${skipped} cities due to invalid coordinates`);
         }
 
-        this.map.fitBounds(bounds, { padding: [50, 50] });
+        this.map.fitBounds(bounds,
+        {
+            padding: [50, 50],
+            maxZoom: this.FIT_BOUNDS_MAX_ZOOM
+        });
         this.updateTooltipVisibility();
     }
 
@@ -292,7 +303,7 @@ export class LeafletMapComponent implements AfterViewInit, OnDestroy
 
     }
 
-    private applyBasemap(mode: 'standard' | 'humanitarian' | 'opentopo' | 'esristreet' | 'esriworldimagery' | 'wikimedia'): void 
+    private applyBasemap(mode: 'standard' | 'humanitarian' | 'opentopo' | 'esristreet' | 'esriworldimagery'): void 
     {
         if (!this.map) 
         {
@@ -337,14 +348,6 @@ export class LeafletMapComponent implements AfterViewInit, OnDestroy
                 {
                     maxZoom: 19,
                     attribution: 'Tiles &copy; Esri'
-                });
-        }
-        else if (mode === 'wikimedia') 
-        {
-            this.tileLayer = L.tileLayer('https://maps.wikimedia.org/osm-intl/{z}/{x}/{y}.png',
-                {
-                    maxZoom: 19,
-                    attribution: '&copy; OpenStreetMap contributors, Wikimedia'
                 });
         }
         else 

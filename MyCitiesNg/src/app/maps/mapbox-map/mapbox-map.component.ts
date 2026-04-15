@@ -32,6 +32,7 @@ export class MapboxMapComponent implements AfterViewInit, OnDestroy
     private readonly popupHtml = inject(CityPopupHtmlService);
     private readonly dialog = inject(MatDialog);
     private readonly debugLogger = inject(DebugLoggerService);
+    private readonly FIT_BOUNDS_MAX_ZOOM = 6;
 
     private map?: mapboxgl.Map;
     private markers: mapboxgl.Marker[] = [];
@@ -49,10 +50,11 @@ export class MapboxMapComponent implements AfterViewInit, OnDestroy
     
     stayDurations$ = this.citiesStore.stayDurations$;
     decades$ = this.citiesStore.decades$;
+    locations$ = this.citiesStore.locations$;
 
     basemaps: BasemapOption[] =
     [
-        { value: 'standard', label: 'Standard' },
+        { value: 'standard', label: 'Standard Map Style' },
         { value: 'outdoors', label: 'Outdoors' },
         { value: 'satelliteStreets', label: 'Satellite Streets' },
         { value: 'navDay', label: 'Navigation Day' },
@@ -62,10 +64,16 @@ export class MapboxMapComponent implements AfterViewInit, OnDestroy
     selectedBasemap: string | null = 'standard';
     readonly selectedStayDuration$ = this.citiesStore.stayDurationFilter$;
     readonly selectedDecade$ = this.citiesStore.decadeFilter$;
+    readonly selectedLocation$ = this.citiesStore.locationFilter$;
 
     onDecadeChange(value: string | null): void 
     {
         this.citiesStore.setDecadeFilter(value);
+    }
+    
+    onLocationChange(value: string | null): void
+    {
+        this.citiesStore.setLocationFilter(value);
     }
 
     onStayChange(value: string | null): void 
@@ -317,7 +325,7 @@ export class MapboxMapComponent implements AfterViewInit, OnDestroy
         this.map.fitBounds(bounds, 
         {
             padding: 50,
-            maxZoom: 9
+            maxZoom: this.FIT_BOUNDS_MAX_ZOOM
         });
     }
 

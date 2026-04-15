@@ -5,6 +5,7 @@ import { filter, Observable } from 'rxjs';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
+import { LocationFilterOption } from '../../../../models/LocationFilterOption';
 
 export interface BasemapOption {
   value: string;
@@ -24,6 +25,7 @@ export class MapFiltersBarComponent
 {
     // Data sources
     @Input({ required: true }) decades$!: Observable<string[]>;
+    @Input({ required: true }) locations$!: Observable<LocationFilterOption[]>;
     @Input({ required: true }) stayDurations$!: Observable<string[]>;
     @Input() basemaps: BasemapOption[] = [];
 
@@ -31,11 +33,13 @@ export class MapFiltersBarComponent
     @Input() selectedDecade: string | null = null;
     @Input() selectedStayDuration: string | null = null;
     @Input() selectedBasemap: string | null = null;
+    @Input() selectedLocation: string | null = null;
 
     // Outputs
     @Output() decadeChange = new EventEmitter<string | null>();
     @Output() stayDurationChange = new EventEmitter<string | null>();
     @Output() basemapChange = new EventEmitter<string>();
+    @Output() locationChange = new EventEmitter<string | null>();
 
     private readonly router = inject(Router);
     private readonly destroyRef = inject(DestroyRef);
@@ -58,7 +62,7 @@ export class MapFiltersBarComponent
 
         // Initialize immediately (first render)
         this.currentEngine = this.getEngineFromUrl(this.router.url);
-    }
+    } 
     
     onBasemapSelectChange(target: EventTarget | null): void 
     {

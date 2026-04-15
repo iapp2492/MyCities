@@ -14,6 +14,8 @@ namespace MyCitiesDataAccess
 
         Task<List<int>> GetActivePhotoKeysAsync();
 
+        Task<List<LocationFilterOptionDto>> GetLocationFilterOptionsAsync();
+
         #endregion
 
         #region Admin

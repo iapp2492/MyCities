@@ -5,6 +5,7 @@ import { MyCityDto } from '../../../models/myCityDto';
 import { MyCitiesApiService } from '../services/my-cities-api.service';
 import { BasemapMode } from '../../../models/basemapMode';
 import { DebugLoggerService } from './debug-logger.service';
+import { LocationFilterOption } from '../../../models/LocationFilterOption';
 
 @Injectable({ providedIn: 'root' })
 export class MyCitiesStoreService 
@@ -28,6 +29,9 @@ export class MyCitiesStoreService
 
     private readonly _decadesSubject = new BehaviorSubject<string[]>([]);
     readonly decades$ = this._decadesSubject.asObservable();
+    
+    private readonly _locationSubject = new BehaviorSubject<LocationFilterOption[]>([]);
+    readonly locations$ = this._locationSubject.asObservable();
 
     private readonly _stayDurationFilterSubject = new BehaviorSubject<string | null>(null);
     readonly stayDurationFilter$ = this._stayDurationFilterSubject.asObservable();
@@ -35,26 +39,31 @@ export class MyCitiesStoreService
     private readonly _decadeFilterSubject = new BehaviorSubject<string | null>(null);
     readonly decadeFilter$ = this._decadeFilterSubject.asObservable();
 
+    private readonly _locationFilterSubject = new BehaviorSubject<string | null>(null);
+    readonly locationFilter$ = this._locationFilterSubject.asObservable();
+
     private readonly _basemapModeSubject = new BehaviorSubject<BasemapMode>('standard');
     readonly basemapMode$ = this._basemapModeSubject.asObservable();
 
     readonly filteredCities$ = combineLatest(
-                [
-                    this.cities$,
-                    this.stayDurationFilter$,
-                    this.decadeFilter$
-                ])
-                .pipe(this.debugLogger.debugTap<[MyCityDto[] | null, string | null, string | null]>
+            [
+                this.cities$,
+                this.stayDurationFilter$,
+                this.decadeFilter$,
+                this.locationFilter$
+            ])
+            .pipe(this.debugLogger.debugTap<[MyCityDto[] | null, string | null, string | null, string | null]>
             (
                 'Combining cities with filters (values):',
-                ([cities, stay, decade]) =>
+                ([cities, stay, decade, location]) =>
                 ({
                     citiesCount: cities?.length ?? 0,
                     stay,
-                    decade
+                    decade,
+                    location
                 })
             ),
-            map(([cities, stay, decade]) => 
+            map(([cities, stay, decade, location]) => 
             {
                 if (!cities) 
                 {
@@ -75,7 +84,25 @@ export class MyCitiesStoreService
 
                     const decadeOk = !decade || decades.includes(decade);
 
-                    return stayOk && decadeOk;
+
+                let locationOk = true;
+
+                if (location)
+                {
+                    const [locationType, locationIdRaw] = location.split(':');
+                    const locationId = Number(locationIdRaw);
+
+                    if (locationType === 'region')
+                    {
+                        locationOk = c.regionId === locationId;
+                    }
+                    else if (locationType === 'country')
+                    {
+                        locationOk = c.countryId === locationId;
+                    }
+                }
+
+                    return stayOk && decadeOk  && locationOk;
                 });
             }),
             shareReplay({ bufferSize: 1, refCount: false })
@@ -105,10 +132,11 @@ export class MyCitiesStoreService
         this._loadOnce$ = forkJoin(
         {
             cities: this.api.getAllCities(),
-            activePhotoKeys: this.api.getActivePhotoKeys() 
+            activePhotoKeys: this.api.getActivePhotoKeys(),
+            locationOptions: this.api.getLocationFilterOptions() 
         })
         .pipe(
-            map(({ cities, activePhotoKeys }) =>
+            map(({ cities, activePhotoKeys, locationOptions }) =>
             {
                 const valid = cities.filter(c =>
                     this.isValidCoordinate(c.lat) &&
@@ -124,6 +152,7 @@ export class MyCitiesStoreService
 
                 this.setActivePhotoKeys(activePhotoKeys);
                 this._citiesSubject.next(valid);
+                this._locationSubject.next(locationOptions);
                 this.buildFilterLists(valid);
 
                 return valid;
@@ -182,6 +211,12 @@ export class MyCitiesStoreService
     {
         const v = (value ?? '').trim();
         this._decadeFilterSubject.next(v === '' ? null : v);
+    }
+    
+    setLocationFilter(value: string | null): void 
+    {
+        const v = (value ?? '').trim();
+        this._locationFilterSubject.next(v === '' ? null : v);
     }
 
     clearFilters(): void 

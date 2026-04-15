@@ -1,5 +1,16 @@
 <!-- Filters bar: decade, stay duration, basemap -->
 <div class="filters">
+    
+    <!-- Basemaps (hidden if none provided) -->
+     @if (basemaps.length > 0)
+     {
+         <select (change)="onBasemapSelectChange($event.target)" [value]="selectedBasemap ?? basemaps[0].value">
+            @for (bm of basemaps; track bm.value) 
+            {
+                <option [value]="bm.value">{{ bm.label }}</option>
+            }
+        </select>
+     }
 
     <!-- Decades (multi-decades are possible) -->
    <select
@@ -11,6 +22,20 @@
             @for (d of decades; track d)
             {
                 <option [ngValue]="d">{{ d }}</option>
+            }
+        }
+    </select>
+
+    <!-- Location filter (countries and regions) -->
+    <select
+        [ngModel]="selectedLocation"
+        (ngModelChange)="locationChange.emit($event)">
+        <option [ngValue]="null">All Locations</option>
+        @if (locations$ | async; as locations)
+        {
+            @for (option of locations; track option.filterValue)
+            {
+                <option [ngValue]="option.filterValue">{{ option.filterLabel }}</option>
             }
         }
     </select>
@@ -28,17 +53,6 @@
             }
         }
     </select>
-
-    <!-- Basemaps (hidden if none provided) -->
-     @if (basemaps.length > 0)
-     {
-         <select (change)="onBasemapSelectChange($event.target)" [value]="selectedBasemap ?? basemaps[0].value">
-            @for (bm of basemaps; track bm.value) 
-            {
-                <option [value]="bm.value">{{ bm.label }}</option>
-            }
-        </select>
-     }
 
      <mat-button-toggle-group
         [value]="currentEngine"

@@ -95,6 +95,24 @@ namespace MyCitiesDataAccess
             return activePhotoKeys;
         }
 
+        public async Task<List<LocationFilterOptionDto>> GetLocationFilterOptionsAsync()
+        {
+            var items = await _db.LocationFilterOptions
+                .OrderBy(x => x.PrimarySort)
+                .ThenBy(x => x.SecondarySort)
+                .ThenBy(x => x.FilterLabel)
+                .Select(x => new LocationFilterOptionDto
+                {
+                    FilterType = x.FilterType,
+                    FilterId = x.FilterId,
+                    FilterValue = x.FilterValue,
+                    FilterLabel = x.FilterLabel
+                })
+                .ToListAsync();
+
+            return items;
+        }
+
 
         #endregion
 
@@ -128,7 +146,9 @@ namespace MyCitiesDataAccess
             {
                 City = x.City,
                 Country = x.Country,
-                Region = x.Region,
+                CountryId = x.CountryId, 
+                Region = x.Region,  
+                RegionId = x.RegionId,     
                 Lat = (double)x.Lat,
                 Lon = (double)x.Lon,
                 StayDuration = x.StayDuration,

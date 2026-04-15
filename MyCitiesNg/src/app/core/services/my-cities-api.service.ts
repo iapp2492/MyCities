@@ -5,6 +5,7 @@ import { MyCityDto } from "../../../models/myCityDto";
 import { API_BASE_URL } from "../tokens/api-base-url.token";
 import { MyCityPhotosResponseDto } from "../../../models/MyCityPhotosResponseDto";
 import { DebugLoggerService } from "./debug-logger.service";
+import { LocationFilterOption } from "../../../models/LocationFilterOption";
 
 @Injectable({
     providedIn: 'root'
@@ -38,6 +39,13 @@ export class MyCitiesApiService
     {
         const url = `${this.apiBaseUrl}MyCities/GetActivePhotoKeys`;
         return this.http.get<number[]>(url);
+    }
+
+    getLocationFilterOptions(): Observable<LocationFilterOption[]>
+    {
+        return this.http.get<LocationFilterOption[]>(
+            `${this.apiBaseUrl}MyCities/GetLocationFilterOptions`
+        );
     }
 
 

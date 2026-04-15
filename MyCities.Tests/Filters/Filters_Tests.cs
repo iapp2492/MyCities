@@ -9,8 +9,10 @@ using Serilog.Events;
 
 namespace MyCities.Tests.Filters
 {
+    [Collection("Serilog global logger tests")]
     public sealed class Filters_Tests
     {
+
         [Fact]
         public async Task SerilogActionEnricherFilter_Enriches_LogContext_For_Action_Only()
         {
@@ -95,6 +97,7 @@ namespace MyCities.Tests.Filters
             {
                 Log.Logger = originalLogger;
             }
+
         }
 
         [Fact]

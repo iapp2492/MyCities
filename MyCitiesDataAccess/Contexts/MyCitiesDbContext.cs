@@ -14,6 +14,8 @@ public partial class MyCitiesDbContext : DbContext
 
     public virtual DbSet<Decade> Decades { get; set; }
 
+    public virtual DbSet<LocationFilterOption> LocationFilterOptions { get; set; }
+
     public virtual DbSet<MyCity> MyCities { get; set; }
 
     public virtual DbSet<MyCityDecade> MyCityDecades { get; set; }
@@ -112,6 +114,25 @@ public partial class MyCitiesDbContext : DbContext
         {
             entity.HasNoKey();
             entity.ToView("vw_MyCity_Spreadsheet");
+        });
+
+        modelBuilder.Entity<LocationFilterOption>(entity =>
+        {
+            entity.HasNoKey();
+
+            entity.ToView("vwLocationFilterOptions");
+
+            entity.Property(e => e.FilterType);
+
+            entity.Property(e => e.FilterId);
+
+            entity.Property(e => e.FilterValue);
+
+            entity.Property(e => e.FilterLabel);
+
+            entity.Property(e => e.PrimarySort);
+
+            entity.Property(e => e.SecondarySort);
         });
 
         OnModelCreatingPartial(modelBuilder);

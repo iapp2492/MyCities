@@ -1,4 +1,5 @@
 ﻿using ClosedXML.Excel;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using MyCitiesDataAccess.Dtos;
 using MyCitiesDataAccess.Models;
@@ -287,6 +288,11 @@ namespace MyCitiesDataAccess
 
 
         public Task<List<int>> GetActivePhotoKeysAsync()
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task<List<LocationFilterOptionDto>> GetLocationFilterOptionsAsync()
         {
             throw new NotImplementedException();
         }

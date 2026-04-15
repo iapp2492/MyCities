@@ -33,6 +33,7 @@ export class GoogleMapComponent  implements AfterViewInit, OnDestroy
     private readonly popupHtml = inject(CityPopupHtmlService);
     private readonly dialog = inject(MatDialog);
     private readonly debugLogger = inject(DebugLoggerService);
+    private readonly FIT_BOUNDS_MAX_ZOOM = 6;
 
     private map?: google.maps.Map;
     private markers: google.maps.marker.AdvancedMarkerElement[] = [];
@@ -40,8 +41,9 @@ export class GoogleMapComponent  implements AfterViewInit, OnDestroy
 
     private latestCities: MyCityDto[] | null = null;
     
-    stayDurations$ = this.citiesStore.stayDurations$;
     decades$ = this.citiesStore.decades$;
+    locations$ = this.citiesStore.locations$;
+    stayDurations$ = this.citiesStore.stayDurations$;
 
     basemaps: BasemapOption[] =
     [
@@ -52,12 +54,18 @@ export class GoogleMapComponent  implements AfterViewInit, OnDestroy
     ];
 
     selectedBasemap: string | null = 'roadmap';
-    readonly selectedStayDuration$ = this.citiesStore.stayDurationFilter$;
     readonly selectedDecade$ = this.citiesStore.decadeFilter$;
+    readonly selectedLocation$ = this.citiesStore.locationFilter$;
+    readonly selectedStayDuration$ = this.citiesStore.stayDurationFilter$;
 
     onDecadeChange(value: string | null): void 
     {
         this.citiesStore.setDecadeFilter(value);
+    }
+
+    onLocationChange(value: string | null): void
+    {
+        this.citiesStore.setLocationFilter(value);
     }
 
     onStayChange(value: string | null): void 
@@ -231,7 +239,7 @@ export class GoogleMapComponent  implements AfterViewInit, OnDestroy
                 content,
             });
 
-            marker.addEventListener('gmp-click', () => 
+            marker.addListener('click', () =>
             {
                 const hasPhotos = this.citiesStore.hasPhotos(city.photoKey);
                 const html = this.popupHtml.build(city, hasPhotos);
@@ -246,6 +254,20 @@ export class GoogleMapComponent  implements AfterViewInit, OnDestroy
         }
 
         this.map.fitBounds(bounds, 50); // 50px padding
+        // Google maps doesn't expose maxZoom in fitBounds, so we must wait for 'idle' before correcting it
+        google.maps.event.addListenerOnce(this.map, 'idle', () =>
+        {
+            if (!this.map)
+            {
+                return;
+            }
+
+            const currentZoom = this.map.getZoom();
+            if (currentZoom != null && currentZoom > this.FIT_BOUNDS_MAX_ZOOM)
+            {
+                this.map.setZoom(this.FIT_BOUNDS_MAX_ZOOM);
+            }
+        });
     }
 
     private clearMarkers(): void 

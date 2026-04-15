@@ -70,7 +70,10 @@ namespace MyCities.Tests.Middleware
             }
 
             // Assert - log
-            var logEvent = sink.Events.Single();
+            LogEvent? logEvent = Assert.Single(
+                sink.Events,
+                e => e.Level == LogEventLevel.Error &&
+                     e.MessageTemplate.Text == "Unhandled exception occurred.");
             Assert.Equal(LogEventLevel.Error, logEvent.Level);
 
             // Your middleware logs "Unhandled exception occurred."
@@ -114,7 +117,12 @@ namespace MyCities.Tests.Middleware
             await middleware.InvokeAsync(context);
 
             // Assert - log properties enriched by LogContext
-            var logEvent = sink.Events.Single();
+
+            LogEvent? logEvent = Assert.Single(
+                sink.Events,
+                e => e.Level == LogEventLevel.Error &&
+                     e.MessageTemplate.Text == "Unhandled exception occurred.");
+            Assert.Equal(LogEventLevel.Error, logEvent.Level);
 
             AssertPropertyEquals(logEvent, "TraceId", "trace-999");
             AssertPropertyEquals(logEvent, "RequestPath", "/api/Debugging/GetEnvironmentInfo");

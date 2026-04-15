@@ -49,7 +49,8 @@ namespace MyCities.Tests.EntityFramework
                 sdIdShort,
                 -3.3667m,
                 36.6833m,
-                "Note A");
+                "Note A",
+                5);
 
             var myCityIdMontreal = await InsertMyCityAsync(
                 ctx,
@@ -59,7 +60,9 @@ namespace MyCities.Tests.EntityFramework
                 sdIdMedium,
                 45.5017m,
                 -73.5673m,
-                "Note M");
+                "Note M",
+                36
+                );
 
             // Calgary gets TWO decades to prove the STUFF/FOR XML aggregation works
             var myCityIdCalgary = await InsertMyCityAsync(
@@ -70,7 +73,8 @@ namespace MyCities.Tests.EntityFramework
                 sdIdMedium,
                 51.0447m,
                 -114.0719m,
-                "Note C");
+                "Note C",
+                11);
 
             await InsertMyCityDecadeAsync(ctx, myCityIdCalgary, decadeId1990s);
             await InsertMyCityDecadeAsync(ctx, myCityIdCalgary, decadeId2000s);
@@ -100,10 +104,15 @@ namespace MyCities.Tests.EntityFramework
             Assert.Equal("1-3 months", arusha.StayDuration);
             Assert.Equal(string.Empty, arusha.Decades); // view returns NULL => service maps to empty string
             Assert.Equal("Note A", arusha.Notes);
+            Assert.Equal(5, arusha.PhotoKey);
+
+            var montreal = results.Single(x => x.Country == "Canada" && x.City == "Montreal");
+            Assert.Equal(36, montreal.PhotoKey);
 
             // Decades aggregation (order should follow Decade.SortOrder)
             var calgary = results.Single(x => x.Country == "Canada" && x.City == "Calgary");
             Assert.Equal("1990s, 2000s", calgary.Decades);
+            Assert.Equal(11, calgary.PhotoKey);
 
             // AsNoTracking expectation (service uses AsNoTracking)
             Assert.Empty(ctx.ChangeTracker.Entries());
@@ -194,11 +203,12 @@ namespace MyCities.Tests.EntityFramework
             int stayDurationId,
             decimal lat,
             decimal lon,
-            string notes)
+            string notes,
+            int photoKey)
         {
             const string sql = @"
-                INSERT INTO dbo.MyCity (CityName, CountryId, RegionId, StayDurationId, Latitude, Longitude, Notes)
-                VALUES (@CityName, @CountryId, @RegionId, @StayDurationId, @Latitude, @Longitude, @Notes);
+                INSERT INTO dbo.MyCity (CityName, CountryId, RegionId, StayDurationId, Latitude, Longitude, Notes, PhotoKey)
+                VALUES (@CityName, @CountryId, @RegionId, @StayDurationId, @Latitude, @Longitude, @Notes, @PhotoKey);
                 SELECT CAST(SCOPE_IDENTITY() AS int);";
 
             return await ExecuteScalarIntAsync(
@@ -210,7 +220,8 @@ namespace MyCities.Tests.EntityFramework
                 new SqlParameter("@StayDurationId", stayDurationId),
                 new SqlParameter("@Latitude", lat),
                 new SqlParameter("@Longitude", lon),
-                new SqlParameter("@Notes", notes));
+                new SqlParameter("@Notes", notes),
+                new SqlParameter("@PhotoKey", photoKey));
         }
 
         private static async Task InsertMyCityDecadeAsync(MyCitiesDbContext ctx, int myCityId, int decadeId)

@@ -7,12 +7,15 @@
         <!-- Shared dropdowns for decades, stay durations and basemaps -->
         <app-map-filters-bar
             [decades$]="decades$"
+            [locations$]="locations$"
             [stayDurations$]="stayDurations$"
             [basemaps]="basemaps"
             [selectedDecade]="selectedDecade$  | async"
+            [selectedLocation]="selectedLocation$  | async"
             [selectedStayDuration]="selectedStayDuration$  | async"
             [selectedBasemap]="selectedBasemap"
             (decadeChange)="onDecadeChange($event)"
+            (locationChange)="onLocationChange($event)"
             (stayDurationChange)="onStayChange($event)"
             (basemapChange)="onBasemapChange($event)">
         </app-map-filters-bar>

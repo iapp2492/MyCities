@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using MyCitiesDataAccess;                 
 using MyCitiesDataAccess.Dtos;
 using Serilog.Context;
@@ -135,6 +136,13 @@ namespace MyCitiesWebApi.Controllers
         {
             List<int> activePhotoKeys = await _myCitiesDataService.GetActivePhotoKeysAsync(); 
             return Ok(activePhotoKeys);
+        }
+
+        [HttpGet("GetLocationFilterOptions")]
+        public async Task<ActionResult<IEnumerable<LocationFilterOptionDto>>> GetLocationFilterOptions()
+        {
+            var items = await _myCitiesDataService.GetLocationFilterOptionsAsync();
+            return Ok(items);
         }
 
 

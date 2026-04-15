@@ -711,16 +711,6 @@ describe('LeafletMapComponent', () =>
         expect(url).toContain('World_Imagery');
     });
 
-    it('applyBasemap should create wikimedia tiles', () =>
-    {
-        (component as unknown as { map: LeafletMapLike }).map = fakeMap;
-
-        (component as unknown as { applyBasemap: (m: BasemapMode) => void }).applyBasemap('wikimedia' as BasemapMode);
-
-        const url = tileLayerSpy.calls.mostRecent().args[0] as string;
-        expect(url).toContain('maps.wikimedia.org');
-    });
-
     it('renderMarkers returns early when map is not initialized (covers if (!this.map))', () =>
     {
         // Force map to be "not ready"
@@ -976,7 +966,7 @@ describe('LeafletMapComponent', () =>
         expect(dialog.open).not.toHaveBeenCalled();
 
         expect(typeof link.onclick).toBe('function');
-        
+
         dialog.open.calls.reset();
         debugLogger.warn.calls.reset();
 

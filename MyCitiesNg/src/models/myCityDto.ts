@@ -1,8 +1,10 @@
 export interface MyCityDto {
     id: number;
     city: string;
-    country: string;
     region: string;
+    regionId: number;  
+    country: string;
+    countryId: number; 
     lat: number;
     lon: number;
     stayDuration: string;

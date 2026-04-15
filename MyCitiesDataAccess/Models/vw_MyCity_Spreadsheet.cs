@@ -13,8 +13,12 @@ public partial class vw_MyCity_Spreadsheet
     [StringLength(150)]
     public string Country { get; set; } = null!;
 
+    public int CountryId { get; set; }
+
     [StringLength(50)]
     public string Region { get; set; } = null!;
+
+    public int RegionId { get; set; }
 
     [Column(TypeName = "decimal(9, 6)")]
     public decimal Lat { get; set; }

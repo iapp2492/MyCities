@@ -10,6 +10,9 @@ namespace MyCitiesDataAccess.Dtos
         [Required] public string Country { get; set; } = string.Empty;
         [Required] public string Region { get; set; } = string.Empty;
 
+        public int RegionId { get; set; }
+        public int CountryId { get; set; }
+
         public double Lat { get; set; }
         public double Lon { get; set; }
 
