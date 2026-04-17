@@ -8,6 +8,37 @@
   <link rel="icon" type="image/x-icon" href="favicon.ico">
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+
+    <!-- Google tag (gtag.js) -->
+    <script>
+        (function ()
+        {
+            var host = window.location.hostname;
+            var isProdHost =
+                host === 'www.travelswithcal.com' ||
+                host === 'travelswithcal.com';
+
+            if (!isProdHost)
+            {
+                window.dataLayer = window.dataLayer || [];
+                window.gtag = window.gtag || function () { window.dataLayer.push(arguments); };
+                return;
+            }
+
+            window.dataLayer = window.dataLayer || [];
+            function gtag() { window.dataLayer.push(arguments); }
+            window.gtag = window.gtag || gtag;
+
+            var script = document.createElement('script');
+            script.async = true;
+            script.src = 'https://www.googletagmanager.com/gtag/js?id=G-Y7N92J73K3';
+            document.head.appendChild(script);
+
+            gtag('js', new Date());
+            gtag('config', 'G-Y7N92J73K3', { send_page_view: false });
+        })();
+    </script>
+
 </head>
 <body>
   <app-root></app-root>

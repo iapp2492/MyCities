@@ -6,6 +6,7 @@ import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { LocationFilterOption } from '../../../../models/LocationFilterOption';
+import { AnalyticsService } from '../../../core/services/analytics.service';
 
 export interface BasemapOption {
   value: string;
@@ -45,6 +46,7 @@ export class MapFiltersBarComponent
     private readonly destroyRef = inject(DestroyRef);
 
     public currentEngine: MapEngine = 'leaflet';
+    private readonly analytics = inject(AnalyticsService);
 
     public constructor()
     {
@@ -73,6 +75,13 @@ export class MapFiltersBarComponent
         }
 
         const value = select.value;
+
+        this.analytics.event('basemap_changed',
+        {
+            engine: this.currentEngine,
+            basemap: value
+        });
+
         this.basemapChange.emit(value);
     }
 
@@ -89,6 +98,11 @@ export class MapFiltersBarComponent
     {
         // Update immediately for snappier UI, then navigate.
         this.currentEngine = engine;
+
+        this.analytics.event('map_engine_selected',
+        {
+            engine: engine
+        });
 
         this.router.navigate(['/map', engine], { queryParamsHandling: 'merge' });
     }
