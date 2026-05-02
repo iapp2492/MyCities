@@ -9,7 +9,7 @@ This document contains the output of a Claude Code review of the MyCities Angula
 
   **My Response:**  API keys exist only in locally ignored environment files. (.gitignore) I have verified that they are not in my GitHub repository or in Git history, so the statement that they are in tracked files is incorrect.  
 
-  Performance
+  ## Performance
 
   ## 2. No route-level lazy loading
   **Claude:** All five routes (three map engines + photo viewer + welcome) are eager-loaded at startup. Since a user will typically
@@ -26,7 +26,7 @@ This document contains the output of a Claude Code review of the MyCities Angula
   **My Response:** Some duplication exists across the three map engine components, but much of it is intentional because each map provider has meaningfully different APIs and lifecycle behavior. Shared concerns such as filter state, city data, photo lookup, and analytics are already centralized in services. Further abstraction would only be worthwhile where the shared behavior is substantial and stable, not merely because similar-looking code appears in multiple components.
 
 
-  Resilience
+  ## Resilience
 
   ## 4. No HTTP-layer error handling
   **Claude:** MyCitiesApiService has no retry logic, no request timeouts, and no interceptors. A single failed forkJoin call on
@@ -45,7 +45,7 @@ This document contains the output of a Claude Code review of the MyCities Angula
 
   **My Response:**  shareReplay({ refCount: false }) is used intentionally to cache API results for the lifetime of the session. In this implementation, refresh() explicitly resets the cached observable (_loadOnce$), and the application does not create long-lived or repeated subscriptions that would accumulate over time. Given the small dataset, short session duration, and the fact that refresh is not part of normal user flow (in fact, not even currently implemented at the UI level), the practical memory impact is negligible. If this evolved into a long-running or frequently refreshed application, I would revisit lifecycle management.
 
-  Maintainability
+  ## Maintainability
 
   ## 6. window.gtag accessed directly
   **Claude:** AnalyticsService calls (window as any).gtag(...) directly. If the GA script fails to load (ad blockers, network
