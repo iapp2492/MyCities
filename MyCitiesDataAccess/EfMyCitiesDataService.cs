@@ -1,5 +1,4 @@
-﻿using DocumentFormat.OpenXml.InkML;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using MyCitiesDataAccess.Contexts;
 using MyCitiesDataAccess.Dtos;
@@ -7,6 +6,11 @@ using MyCitiesDataAccess.Models;
 
 namespace MyCitiesDataAccess
 {
+    // Historically, this app was initially developed using an Excel spreadsheet as the source of data but eventually the data source was transitioned to a SQL Server database.
+    // As new features were added, they were not included in the Excel data service.  In order to satisfy the Liskov Substituion Principle and the Interface Segregation Principle,
+    // the methods for new features were placed in new targeted interfaces (e.g. IMyCitiesPhotoReader) and implemented only in this class (not in the deprecated Excel data service). 
+    // IMyCitiesListReader, IMyCitiesDetailReader, IMyCitiesPhotoReader, IMyCitiesFilterReader, IMyCitiesAdminDataService have been combined into a facade interface IMyCitiesDataService
+    // as a convenience for use by the rest of this app.
     public class EfMyCitiesDataService : IMyCitiesDataService
     {
         #region Fields
@@ -47,7 +51,7 @@ namespace MyCitiesDataAccess
 
         public Task ReloadAsync()
         {
-            // No-op: DB is source of truth
+            // No-op: DB is now the source of truth
             return Task.CompletedTask;
         }
 
@@ -113,18 +117,37 @@ namespace MyCitiesDataAccess
             return items;
         }
 
+        private static MyCityDto ToDto(vw_MyCity_Spreadsheet x)
+        {
+            return new MyCityDto
+            {
+                City = x.City,
+                Country = x.Country,
+                CountryId = x.CountryId,
+                Region = x.Region,
+                RegionId = x.RegionId,
+                Lat = (double)x.Lat,
+                Lon = (double)x.Lon,
+                StayDuration = x.StayDuration,
+                Decades = x.Decades ?? string.Empty,
+                Notes = x.Notes,
+                PhotoKey = x.PhotoKey
+            };
+        }
+
+        public Task<MyCityDto?> GetCityByIdAsync(int id)
+        {
+            // Not currently implemented because there are no current use cases for it but available for future use if needed.  
+            return Task.FromResult<MyCityDto?>(null);
+        }
+
 
         #endregion
 
         #region Admin
 
 
-        // Not currently used but available for future use 
-        public Task<MyCityDto?> GetCityByIdAsync(int id)
-        {
-            return Task.FromResult<MyCityDto?>(null);
-        }
-
+        // All admin methods are not currently used but are available for future use, when needed.
         public Task<int> CreateCityAsync(MyCityDto city)
         {
             throw new NotImplementedException();
@@ -140,23 +163,6 @@ namespace MyCitiesDataAccess
             throw new NotImplementedException();
         }
 
-        private static MyCityDto ToDto(vw_MyCity_Spreadsheet x)
-        {
-            return new MyCityDto
-            {
-                City = x.City,
-                Country = x.Country,
-                CountryId = x.CountryId, 
-                Region = x.Region,  
-                RegionId = x.RegionId,     
-                Lat = (double)x.Lat,
-                Lon = (double)x.Lon,
-                StayDuration = x.StayDuration,
-                Decades = x.Decades ?? string.Empty,
-                Notes = x.Notes, 
-                PhotoKey = x.PhotoKey
-            };
-        }
 
 
         #endregion

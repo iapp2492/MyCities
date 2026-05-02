@@ -100,7 +100,7 @@ export class PhotoViewerComponent implements OnChanges, OnDestroy, AfterViewInit
         });    
 
         // Optional: recalc on resize
-    //    window.addEventListener('resize', this.onResize);
+        // window.addEventListener('resize', this.onResize);
     }
 
     public swiperConfig: Record<string, unknown> =
@@ -223,7 +223,7 @@ export class PhotoViewerComponent implements OnChanges, OnDestroy, AfterViewInit
 
     private buildCityPhotoUrl(photoKey: number, fileNameFromDb: string): string
     {
-        // Your actual file structure: assets/images/cities/{photoKey}/{photoKey}-{photoIndex}.jpg
+        // Actual file structure: assets/images/cities/{photoKey}/{photoKey}-{photoIndex}.jpg
         const folder = `assets/images/cities/${photoKey}`;
         const url = `${folder}/${fileNameFromDb}`;
         this.debugLogger.log(`Building photo URL for photoKey=${photoKey}, fileNameFromDb="${fileNameFromDb}": ${url}`); 
@@ -276,7 +276,7 @@ export class PhotoViewerComponent implements OnChanges, OnDestroy, AfterViewInit
             }
         }
 
-        // Fallback to your old approach
+        // Fallback to our old approach
         const target = evt.target as { swiper?: { activeIndex?: number } } | null;
         const idx = target?.swiper?.activeIndex;
 

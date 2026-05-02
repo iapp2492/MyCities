@@ -14,6 +14,7 @@ import { MatDialog } from '@angular/material/dialog';
 import { PhotoViewerDialogComponent } from '../../photo-viewer/photo-viewer-dialog.component';
 import { CommonModule } from '@angular/common';
 import { DebugLoggerService } from '../../core/services/debug-logger.service';
+import { AnalyticsService } from '../../core/services/analytics.service';
 
 
 @Component({
@@ -33,11 +34,13 @@ export class GoogleMapComponent  implements AfterViewInit, OnDestroy
     private readonly popupHtml = inject(CityPopupHtmlService);
     private readonly dialog = inject(MatDialog);
     private readonly debugLogger = inject(DebugLoggerService);
-    private readonly FIT_BOUNDS_MAX_ZOOM = 6;
+    private readonly FIT_BOUNDS_MAX_ZOOM = 6;    
+    private readonly analytics = inject(AnalyticsService);
 
     private map?: google.maps.Map;
     private markers: google.maps.marker.AdvancedMarkerElement[] = [];
     private infoWindow?: google.maps.InfoWindow;
+    private currentPopupCity: MyCityDto | null = null;
 
     private latestCities: MyCityDto[] | null = null;
     
@@ -194,6 +197,15 @@ export class GoogleMapComponent  implements AfterViewInit, OnDestroy
     {
         this.debugLogger.log(`Opening photo dialog for photoKey: ${photoKey}`);
 
+        // Analytics: log that photos for the specified city were viewed 
+        this.analytics.event('photo_view_opened',
+        {
+            city: this.currentPopupCity?.city,
+            country: this.currentPopupCity?.country,
+            photoKey: photoKey,
+            engine: 'google'
+        });
+
         this.dialog.open(PhotoViewerDialogComponent,
         {
             data:
@@ -243,8 +255,18 @@ export class GoogleMapComponent  implements AfterViewInit, OnDestroy
             {
                 const hasPhotos = this.citiesStore.hasPhotos(city.photoKey);
                 const html = this.popupHtml.build(city, hasPhotos);
+                this.currentPopupCity = city;
                 this.infoWindow?.setContent(html);
                 this.infoWindow?.open({ map: this.map!, anchor: marker });
+
+                // Analytics: log which city was clicked 
+                this.analytics.event('city_popup_opened',
+                {
+                    city: city.city,
+                    country: city.country,
+                    photoKey: city.photoKey,
+                    engine: 'google'
+                });
             });
 
             this.debugLogger.log(`Placing marker for ${city.city} at (${city.lat}, ${city.lon})`);

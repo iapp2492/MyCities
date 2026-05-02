@@ -1,14 +1,12 @@
 ﻿using ClosedXML.Excel;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using MyCitiesDataAccess.Dtos;
-using MyCitiesDataAccess.Models;
 using System.Diagnostics;
 using System.Globalization;
 
 namespace MyCitiesDataAccess
 {
-    public class ExcelMyCitiesDataService : IMyCitiesDataService
+    public class ExcelMyCitiesDataService : IMyCitiesListReader
     {
         #region Fields
 

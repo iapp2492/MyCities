@@ -13,6 +13,7 @@ import { Router } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
 import { PhotoViewerDialogComponent } from '../../photo-viewer/photo-viewer-dialog.component';
 import { DebugLoggerService } from '../../core/services/debug-logger.service';
+import { AnalyticsService } from '../../core/services/analytics.service';
 
 @Component({
     selector: 'app-leaflet-map',
@@ -29,7 +30,8 @@ export class LeafletMapComponent implements AfterViewInit, OnDestroy
     private readonly popupHtml = inject(CityPopupHtmlService);
     private readonly router = inject(Router);
     private readonly dialog = inject(MatDialog);
-    private readonly debugLogger = inject(DebugLoggerService);
+    private readonly debugLogger = inject(DebugLoggerService);    
+    private readonly analytics = inject(AnalyticsService);
 
     private map?: L.Map;
     private markerLayer = L.layerGroup();
@@ -191,6 +193,13 @@ export class LeafletMapComponent implements AfterViewInit, OnDestroy
 
             marker.on('popupopen', (e: L.PopupEvent) =>
             {
+                this.analytics.event('city_popup_opened',
+                {
+                    city: city.city,
+                    country: city.country,
+                    photoKey: city.photoKey,
+                    engine: 'leaflet'
+                });
                 // popup element (root DOM node of the popup content)
                 const popupEl = e.popup.getElement();
                 if (!popupEl)
@@ -220,6 +229,14 @@ export class LeafletMapComponent implements AfterViewInit, OnDestroy
                     }
 
                     this.debugLogger.log('Opening photo dialog for key', photoKey);
+
+                    this.analytics.event('photo_view_opened',
+                    {
+                        city: city.city,
+                        country: city.country,
+                        photoKey: photoKey,
+                        engine: 'leaflet'
+                    });
                     
                     this.dialog.open(PhotoViewerDialogComponent,
                     {

@@ -14,6 +14,7 @@ import { MatDialog } from '@angular/material/dialog';
 import { PhotoViewerDialogComponent } from '../../photo-viewer/photo-viewer-dialog.component';
 import { CommonModule } from '@angular/common';
 import { DebugLoggerService } from '../../core/services/debug-logger.service';
+import { AnalyticsService } from '../../core/services/analytics.service';
 
 @Component({
   selector: 'app-mapbox-map',
@@ -31,7 +32,8 @@ export class MapboxMapComponent implements AfterViewInit, OnDestroy
     private readonly snackBar = inject(MatSnackBar);
     private readonly popupHtml = inject(CityPopupHtmlService);
     private readonly dialog = inject(MatDialog);
-    private readonly debugLogger = inject(DebugLoggerService);
+    private readonly debugLogger = inject(DebugLoggerService);    
+    private readonly analytics = inject(AnalyticsService);
     private readonly FIT_BOUNDS_MAX_ZOOM = 6;
 
     private map?: mapboxgl.Map;
@@ -266,6 +268,13 @@ export class MapboxMapComponent implements AfterViewInit, OnDestroy
 
             popup.on('open', () =>
             {
+                this.analytics.event('city_popup_opened',
+                {
+                    city: city.city,
+                    country: city.country,
+                    photoKey: city.photoKey,
+                    engine: 'mapbox'
+                });
                 const popupEl = popup.getElement();
                 if (!popupEl)
                 {
@@ -291,6 +300,14 @@ export class MapboxMapComponent implements AfterViewInit, OnDestroy
                         this.debugLogger.warn('Invalid photo key in popup:', raw);
                         return;
                     }
+
+                    this.analytics.event('photo_view_opened',
+                    {
+                        city: city.city,
+                        country: city.country,
+                        photoKey: photoKey,
+                        engine: 'mapbox'
+                    });
 
                     this.dialog.open(PhotoViewerDialogComponent,
                     {

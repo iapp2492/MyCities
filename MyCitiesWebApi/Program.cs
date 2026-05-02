@@ -106,7 +106,7 @@ namespace MyCitiesWebApi
             // the EF-based service that reads from the SQL database.
             // builder.Services.Configure<MyCitiesDataOptions>(
             // builder.Configuration.GetSection("MyCitiesData"));
-            // builder.Services.AddSingleton<IMyCitiesDataService>(sp =>
+            // builder.Services.AddSingleton<IMyCitiesListReader>(sp =>
             // {
             //    var env = sp.GetRequiredService<IWebHostEnvironment>();
             //    var opts = sp.GetRequiredService<IOptions<MyCitiesDataOptions>>().Value;
