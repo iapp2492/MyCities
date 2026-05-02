@@ -51,11 +51,12 @@ This document contains the output of a Claude Code review of the MyCities Angula
    — worth verifying) prevents noisy console errors.
 
    My Response: The review comment is not valid as stated. My AnalyticsService already guards the call:
-
+    ```ts
         if (window.gtag)
         {
             window.gtag(...);
         }
+        ```
 
     So if gtag is missing, the service does nothing and should not throw. Also, my index.html script deliberately creates a fallback window.gtag stub on non-production hosts and only loads the real Google script on:
     
