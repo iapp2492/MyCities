@@ -43,7 +43,7 @@ This project was built to demonstrate modern full-stack engineering practices in
 - The dataset is intentionally small (~60 cities), allowing the architecture to prioritize clarity and maintainability over premature optimization.
 - Standalone Angular components were used to align with modern Angular direction.
 
-- ## Architecture & Code Review
+## Architecture & Code Review
 
 - [Claude Code Review + Responses (April 2026)](docs/Claude_Code_Review_and_Responses.md)
 
