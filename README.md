@@ -22,9 +22,9 @@ This project was built to demonstrate modern full-stack engineering practices in
 
 ## Tech Stack
 
-- Angular 19
+- Angular 20
 - C# ASP.NET Core WebApi
-- SQL Server (future implementation)
+- SQL Server 
 - Leaflet
 - Mapbox
 - Google Maps
@@ -42,6 +42,10 @@ This project was built to demonstrate modern full-stack engineering practices in
 - Multiple map engines were implemented to evaluate tradeoffs between ecosystem maturity, customization, and performance.
 - The dataset is intentionally small (~60 cities), allowing the architecture to prioritize clarity and maintainability over premature optimization.
 - Standalone Angular components were used to align with modern Angular direction.
+
+- ## Architecture & Code Review
+
+- [Claude Code Review + Responses (April 2026)](docs/Claude_Code_Review_and_Responses.md)
 
 ### Unit Test Code Coverage (100%)
 
