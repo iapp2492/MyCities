@@ -28,7 +28,7 @@ class MockAdvancedMarkerElement
 
     public addListener(eventName: string, handler: () => void): void
     {
-        if (eventName === 'gmp-click')
+        if (eventName === 'click' || eventName === 'gmp-click')
         {
             this.clickHandlers.push(handler);
         }
@@ -60,6 +60,7 @@ class TestCitiesStoreMock
     public setStayDurationFilter = jasmine.createSpy('setStayDurationFilter');
     public setBasemapMode = jasmine.createSpy('setBasemapMode');
     public hasPhotos = jasmine.createSpy('hasPhotos').and.returnValue(false);
+    public setLocationFilter = jasmine.createSpy('setLocationFilter');
 
     public ensureLoaded(): Observable<void>
     {
@@ -71,6 +72,8 @@ class TestCitiesStoreMock
         this.filteredCitiesSubject.next(value);
     }
 }
+
+
 
 const activatedRouteMock =
 {
@@ -150,6 +153,8 @@ interface GoogleMocks
     getMapCtorOptions(): google.maps.MapOptions | null;
     triggerIdle(): void;
     reset(): void;
+    getZoomSpy: jasmine.Spy;
+    setZoomSpy: jasmine.Spy;
 }
 
 function installGoogleMapsMocks(): GoogleMocks
@@ -176,10 +181,15 @@ function installGoogleMapsMocks(): GoogleMocks
             return { remove: () => void 0 };
         });
 
+    const getZoomSpy = jasmine.createSpy('getZoom').and.returnValue(10);
+    const setZoomSpy = jasmine.createSpy('setZoom');
+
     const mapInstance =
     {
         fitBounds: fitBoundsSpy,
         setMapTypeId: setMapTypeIdSpy,
+        getZoom: getZoomSpy,
+        setZoom: setZoomSpy
     } as unknown as google.maps.Map;
 
     const infoWindowInstance =
@@ -242,6 +252,8 @@ function installGoogleMapsMocks(): GoogleMocks
         createdMarkers,
         fitBoundsSpy,
         setMapTypeIdSpy,
+        getZoomSpy,
+        setZoomSpy,
         getMapCtorOptions: () => mapCtorOptions,
         triggerIdle: () =>
         {
@@ -266,7 +278,8 @@ describe('GoogleMapComponent', () =>
     let g: GoogleMocks;
     let mapsLoader: GoogleMapsLoaderMock;
     let host: HTMLDivElement;
-
+    let citiesStoreMock: TestCitiesStoreMock;
+    // let idleHandler: Function | null = null;
 
     beforeEach(async () =>
     {
@@ -278,6 +291,16 @@ describe('GoogleMapComponent', () =>
 
         g = installGoogleMapsMocks();
         g.reset();
+        // (g.maps.event.addListenerOnce as jasmine.Spy).and.callFake(
+        //     (map: any, event: string, handler: Function) =>
+        //     {
+        //         if (event === 'idle')
+        //         {
+        //             idleHandler = handler;
+        //         }
+        //     });
+
+
         store = new TestCitiesStoreMock();
 
         await TestBed.configureTestingModule(
@@ -294,6 +317,7 @@ describe('GoogleMapComponent', () =>
         }).compileComponents();
 
         mapsLoader = TestBed.inject(GoogleMapsLoaderService) as unknown as GoogleMapsLoaderMock;
+        citiesStoreMock = TestBed.inject(MyCitiesStoreService) as unknown as TestCitiesStoreMock;
 
         fixture = TestBed.createComponent(GoogleMapComponent);
         component = fixture.componentInstance;
@@ -389,7 +413,9 @@ describe('GoogleMapComponent', () =>
             id: 1,
             city: 'X',
             country: 'Y',
+            countryId: 0,
             region: '',
+            regionId: 0,
             lat: 0,
             lon: 0,
             stayDuration: '',
@@ -777,6 +803,76 @@ describe('GoogleMapComponent', () =>
         link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
 
         expect(dialogOpenSpy).not.toHaveBeenCalled();
+    });
+
+    it('onLocationChange should call setLocationFilter on the store with the provided value', () =>
+    {
+        const value = 'USA';
+
+        component.onLocationChange(value);
+
+        expect(citiesStoreMock.setLocationFilter).toHaveBeenCalledWith(value);
+    });
+
+    it('onLocationChange should call setLocationFilter with null when value is null', () =>
+    {
+        component.onLocationChange(null);
+
+        expect(citiesStoreMock.setLocationFilter).toHaveBeenCalledWith(null);
+    });
+
+    it('renderMarkers should clamp Google Maps zoom after idle when fitBounds zooms in too far', async () =>
+    {
+        await (component as unknown as { initMapOnce(): Promise<void> }).initMapOnce();
+
+        g.getZoomSpy.and.returnValue(15);
+
+        const cities: MyCityDto[] =
+        [
+            createCity({ id: 20, city: 'Single', country: 'X', lat: 10, lon: 20 })
+        ];
+
+        (component as unknown as { renderMarkers(c: MyCityDto[]): void }).renderMarkers(cities);
+
+        g.triggerIdle();
+
+        expect(g.setZoomSpy).toHaveBeenCalledWith(8);
+    });
+
+    it('renderMarkers should not change Google Maps zoom after idle when zoom is within the max', async () =>
+    {
+        await (component as unknown as { initMapOnce(): Promise<void> }).initMapOnce();
+
+        g.getZoomSpy.and.returnValue(6);
+
+        const cities: MyCityDto[] =
+        [
+            createCity({ id: 21, city: 'Single', country: 'X', lat: 10, lon: 20 })
+        ];
+
+        (component as unknown as { renderMarkers(c: MyCityDto[]): void }).renderMarkers(cities);
+
+        g.triggerIdle();
+
+        expect(g.setZoomSpy).not.toHaveBeenCalled();
+    });
+
+    it('renderMarkers should not change Google Maps zoom after idle when getZoom returns null', async () =>
+    {
+        await (component as unknown as { initMapOnce(): Promise<void> }).initMapOnce();
+
+        g.getZoomSpy.and.returnValue(null);
+
+        const cities: MyCityDto[] =
+        [
+            createCity({ id: 22, city: 'Single', country: 'X', lat: 10, lon: 20 })
+        ];
+
+        (component as unknown as { renderMarkers(c: MyCityDto[]): void }).renderMarkers(cities);
+
+        g.triggerIdle();
+
+        expect(g.setZoomSpy).not.toHaveBeenCalled();
     });
 
 });

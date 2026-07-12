@@ -736,7 +736,9 @@ describe('LeafletMapComponent', () =>
             id: overrides.id ?? 0,
             city: overrides.city,
             country: overrides.country ?? '',
+            countryId: overrides.countryId ?? 0,
             region: overrides.region ?? '',
+            regionId: overrides.regionId ?? 0,
             notes: overrides.notes ?? '',
             lat: overrides.lat ?? 0,
             lon: overrides.lon ?? 0,
@@ -944,6 +946,9 @@ describe('LeafletMapComponent', () =>
                 photoKey: 123
             } as unknown as MyCityDto
         ];
+        
+        dialog.open.calls.reset();
+        debugLogger.warn.calls.reset();
 
         (component as unknown as { renderMarkers: (c: MyCityDto[]) => void }).renderMarkers(cities);
         expect(dialog.open).not.toHaveBeenCalled();

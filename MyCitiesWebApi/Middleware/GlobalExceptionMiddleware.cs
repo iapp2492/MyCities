@@ -6,13 +6,13 @@ namespace MyCitiesWebApi.Middleware
 {
     public sealed class GlobalExceptionMiddleware
     {
-        private readonly RequestDelegate _next;
-        private readonly Serilog.ILogger _logger;
+        private readonly RequestDelegate _next; 
+        private readonly ILogger<GlobalExceptionMiddleware> _logger;
 
-        public GlobalExceptionMiddleware(RequestDelegate next)
+        public GlobalExceptionMiddleware(RequestDelegate next, ILogger<GlobalExceptionMiddleware> logger)
         {
             _next = next;
-            _logger = Log.ForContext<GlobalExceptionMiddleware>();
+            _logger = logger;
         }
 
         public async Task InvokeAsync(HttpContext context)
@@ -35,12 +35,13 @@ namespace MyCitiesWebApi.Middleware
                     : null;
 
                 using (LogContext.PushProperty("TraceId", context.TraceIdentifier))
-                using (LogContext.PushProperty("RequestPath", context.Request.Path.Value))
+                using (LogContext.PushProperty("RequestPath", context.Request.Path.ToString()))
                 using (LogContext.PushProperty("Controller", controller))
                 using (LogContext.PushProperty("Action", action))
                 using (LogContext.PushProperty("EndpointName", endpointName))
                 {
-                    _logger.Error(ex, "Unhandled exception occurred.");
+                    // Use injected logger; Serilog sinks will still pick this up when configured.
+                    _logger.LogError(ex, "Unhandled exception occurred.");
                 }
 
                 context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;

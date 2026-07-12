@@ -84,29 +84,36 @@ export class MyCitiesStoreService
 
                     const decadeOk = !decade || decades.includes(decade);
 
-
-                let locationOk = true;
-
-                if (location)
-                {
-                    const [locationType, locationIdRaw] = location.split(':');
-                    const locationId = Number(locationIdRaw);
-
-                    if (locationType === 'region')
-                    {
-                        locationOk = c.regionId === locationId;
-                    }
-                    else if (locationType === 'country')
-                    {
-                        locationOk = c.countryId === locationId;
-                    }
-                }
+                    const locationOk = this.isLocationMatch(c, location);
 
                     return stayOk && decadeOk  && locationOk;
                 });
             }),
             shareReplay({ bufferSize: 1, refCount: false })
         );
+
+    private isLocationMatch(city: MyCityDto, location: string | null): boolean
+    {
+        if (!location)
+        {
+            return true;
+        }
+
+        const [locationType, locationIdRaw] = location.split(':');
+        const locationId = Number(locationIdRaw);
+
+        if (locationType === 'region')
+        {
+            return city.regionId === locationId;
+        }
+
+        if (locationType === 'country')
+        {
+            return city.countryId === locationId;
+        }
+
+        return true;
+    }    
         
     private _loadOnce$?: Observable<MyCityDto[]>;
 

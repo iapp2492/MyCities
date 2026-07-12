@@ -1,9 +1,10 @@
 ﻿using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging.Abstractions;
+using MyCitiesWebApi.Middleware;
 using Serilog;
 using Serilog.Core;
 using Serilog.Events;
 using System.Text.Json;
-using MyCitiesWebApi.Middleware;
 
 namespace MyCities.Tests.Middleware
 {
@@ -33,7 +34,7 @@ namespace MyCities.Tests.Middleware
                 .CreateLogger();
 
             RequestDelegate next = _ => throw new InvalidOperationException("boom");
-            var middleware = new GlobalExceptionMiddleware(next);
+            var middleware = new GlobalExceptionMiddleware(next, NullLogger<GlobalExceptionMiddleware>.Instance);
 
             var context = new DefaultHttpContext();
             context.TraceIdentifier = "trace-123";
@@ -96,7 +97,7 @@ namespace MyCities.Tests.Middleware
                 .CreateLogger();
 
             RequestDelegate next = _ => throw new Exception("fail");
-            var middleware = new GlobalExceptionMiddleware(next);
+            var middleware = new GlobalExceptionMiddleware(next, NullLogger<GlobalExceptionMiddleware>.Instance);
 
             var context = new DefaultHttpContext();
             context.TraceIdentifier = "trace-999";

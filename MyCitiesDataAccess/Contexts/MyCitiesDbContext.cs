@@ -10,23 +10,15 @@ public partial class MyCitiesDbContext : DbContext
     {
     }
 
-    public virtual DbSet<Country> Countries { get; set; }
-
-    public virtual DbSet<Decade> Decades { get; set; }
-
-    public virtual DbSet<LocationFilterOption> LocationFilterOptions { get; set; }
-
-    public virtual DbSet<MyCity> MyCities { get; set; }
-
-    public virtual DbSet<MyCityDecade> MyCityDecades { get; set; }
-
+    public DbSet<Country> Countries { get; set; } = null!;
+    public DbSet<Decade> Decades { get; set; } = null!;
+    public DbSet<LocationFilterOption> LocationFilterOptions { get; set; } = null!;
+    public DbSet<MyCity> MyCities { get; set; } = null!;
+    public DbSet<MyCityDecade> MyCityDecades { get; set; } = null!;
     public DbSet<MyCityPhoto> MyCityPhotos { get; set; } = null!;
-
-    public virtual DbSet<Region> Regions { get; set; }
-
-    public virtual DbSet<StayDuration> StayDurations { get; set; }
-
-    public virtual DbSet<vw_MyCity_Spreadsheet> vw_MyCity_Spreadsheet { get; set; }
+    public DbSet<Region> Regions { get; set; } = null!;
+    public DbSet<StayDuration> StayDurations { get; set; } = null!;
+    public DbSet<vw_MyCity_Spreadsheet> vw_MyCity_Spreadsheet { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

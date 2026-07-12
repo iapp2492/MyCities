@@ -23,20 +23,26 @@ namespace MyCitiesWebApi.Controllers
             _db = db;
             _logger = logger;
         }
-    
+
         [HttpGet]
         [Route("GetEnvironmentInfo")]
         public IActionResult GetEnvironmentInfo()
         {
+            MyCitiesSettings? settings = _myCitiesSettings?.Value;
 
-            MyCitiesSettings settings = _myCitiesSettings.Value;
+            var sqlSettings = settings?.SQLSettings;
 
             var result = new
             {
                 ServerIntro = "The following two values indicate the current attached database",
-                Server = settings.SQLSettings.Server,
-                Database = settings.SQLSettings.Database,
+                Server = string.IsNullOrWhiteSpace(sqlSettings?.Server)
+                    ? "Unable to access MyCitiesSettings.SQLSettings.Server"
+                    : sqlSettings.Server,
+                Database = string.IsNullOrWhiteSpace(sqlSettings?.Database)
+                    ? "Unable to access MyCitiesSettings.SQLSettings.Database"
+                    : sqlSettings.Database,
                 Environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
+                    ?? "Unable to access ASPNETCORE_ENVIRONMENT"
             };
 
             return new JsonResult(result);

@@ -68,7 +68,7 @@ describe('MapFiltersBarComponent', () =>
     it('renders 3 selects when basemaps are provided (Decades, Stay, Basemap)', () =>
     {
         const selects = fixture.debugElement.queryAll(By.css('select'));
-        expect(selects.length).toBe(3);
+        expect(selects.length).toBe(4);
     });
 
     it('hides basemap select when basemaps is empty', () =>
@@ -77,7 +77,7 @@ describe('MapFiltersBarComponent', () =>
         fixture.detectChanges();
 
         const selects = fixture.debugElement.queryAll(By.css('select'));
-        expect(selects.length).toBe(2);
+        expect(selects.length).toBe(3);
     });
 
     it('onBasemapSelectChange returns without emitting when target is null', () =>

@@ -5,6 +5,7 @@ import { MyCityDto } from '../../../models/myCityDto';
 import { API_BASE_URL } from '../tokens/api-base-url.token';
 import { MyCityPhotosResponseDto } from '../../../models/MyCityPhotosResponseDto';
 import { DebugLoggerService } from './debug-logger.service';
+import { LocationFilterOption } from '../../../models/LocationFilterOption';
 
 describe('MyCitiesApiService', () =>
 {
@@ -141,6 +142,33 @@ describe('MyCitiesApiService', () =>
 
         const req = httpMock.expectOne(`${baseUrl}MyCities/GetActivePhotoKeys`);
         expect(req.request.method).toBe('GET');
+        req.flush(mockResponse);
+    });
+
+    it('getLocationFilterOptions should call the GetLocationFilterOptions endpoint and return the response', () =>
+    {
+        const mockResponse: LocationFilterOption[] =
+        [
+            {
+                filterType: 'country',
+                filterId: 1,
+                filterLabel: 'Tanzania'
+            } as LocationFilterOption,
+            {
+                filterType: 'region',
+                filterId: 2,
+                filterLabel: 'Africa'
+            } as LocationFilterOption
+        ];
+
+        service.getLocationFilterOptions().subscribe((response) =>
+        {
+            expect(response).toEqual(mockResponse);
+        });
+
+        const req = httpMock.expectOne(`${baseUrl}MyCities/GetLocationFilterOptions`);
+        expect(req.request.method).toBe('GET');
+
         req.flush(mockResponse);
     });
 

@@ -12,6 +12,7 @@ import { CityPopupHtmlService } from '../../core/services/city-popup-html.servic
 import { provideRouter } from '@angular/router';import { ActivatedRoute, convertToParamMap } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
 import { DebugLoggerService } from '../../core/services/debug-logger.service';
+import { PhotoViewerLauncherService } from '../../photo-viewer/photo-viewer-launcher.service';
 
 type LoadHandler = () => void;
 
@@ -249,6 +250,8 @@ describe('MapboxMapComponent', () =>
         debugTap: jasmine.Spy;
     };
 
+    let photoViewerLauncher: jasmine.SpyObj<PhotoViewerLauncherService>;
+
     beforeEach(async () =>
     {
         host = document.createElement('div');
@@ -259,6 +262,8 @@ describe('MapboxMapComponent', () =>
 
         myCitiesStoreMock = new MyCitiesStoreMock();
         factory = new MapboxFactoryMock();
+
+        photoViewerLauncher = jasmine.createSpyObj('PhotoViewerLauncherService', ['open']);
 
         spyOn(window, 'requestAnimationFrame').and.callFake((cb: FrameRequestCallback) =>
         {
@@ -567,7 +572,7 @@ describe('MapboxMapComponent', () =>
 
         expect(options).toBeDefined();
         expect(options?.padding).toBe(50);
-        expect(options?.maxZoom).toBe(9);
+        expect(options?.maxZoom).toBe(6);
     });
     
     it('renderMarkers should build popup HTML via CityPopupHtmlService and pass it to setHTML', () =>
@@ -755,6 +760,8 @@ describe('MapboxMapComponent', () =>
         const handler = (popup.on as jasmine.Spy).calls.mostRecent().args[1];
 
         handler(); // simulate popup open
+
+        expect(photoViewerLauncher.open).not.toHaveBeenCalled();
     });
 
     it('renderMarkers popup click should open dialog when valid photoKey', () =>

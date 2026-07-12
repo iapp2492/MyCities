@@ -2,17 +2,21 @@
 
 import { TestBed } from '@angular/core/testing';
 import { BehaviorSubject, Observable, Subject, firstValueFrom, of, throwError } from 'rxjs';
-import { take } from 'rxjs/operators';
+import { take, tap } from 'rxjs/operators';
 import { MyCitiesStoreService } from './my-cities-store.service';
 import { MyCitiesApiService } from '../services/my-cities-api.service';
 import { MyCityDto } from '../../../models/myCityDto';
 import { BasemapMode } from '../../../models/basemapMode';
 import { DebugLoggerService } from './debug-logger.service';
+import { LocationFilterOption } from '../../../models/LocationFilterOption';
 
 class MyCitiesApiServiceMock
 {
     getAllCities = jasmine.createSpy('getAllCities');
     getActivePhotoKeys = jasmine.createSpy('getActivePhotoKeys');
+    getStayDurations = jasmine.createSpy('getStayDurations');
+    getDecades = jasmine.createSpy('getDecades');
+    getLocationFilterOptions = jasmine.createSpy('getLocationFilterOptions');
 }
 
 class DebugLoggerServiceMock
@@ -22,8 +26,13 @@ class DebugLoggerServiceMock
     public debugTap<T>(label: string, formatter?: (value: T) => unknown)
     {
         void label;
-        void formatter;
-        return (source: Observable<T>) => source;
+        return (source: Observable<T>) =>
+            source.pipe(
+                tap(value =>
+                {
+                    formatter?.(value);
+                })
+            );
     }
 }
 
@@ -33,7 +42,9 @@ function city(overrides: Partial<MyCityDto> & { city: string }): MyCityDto
         id: overrides.id ?? 0,
         city: overrides.city,
         country: overrides.country ?? 'Country',
+        countryId: overrides.countryId ?? 0,
         region: overrides.region ?? '',
+        regionId: overrides.regionId ?? 0,
         notes: overrides.notes ?? '',
         lat: overrides.lat ?? 0,
         lon: overrides.lon ?? 0,
@@ -60,7 +71,13 @@ describe('MyCitiesStoreService', () =>
 
         service = TestBed.inject(MyCitiesStoreService);
         api = TestBed.inject(MyCitiesApiService) as unknown as MyCitiesApiServiceMock;
+        
+        api.getAllCities.and.returnValue(of([]));
         api.getActivePhotoKeys.and.returnValue(of([]));
+        api.getStayDurations.and.returnValue(of([]));
+        api.getDecades.and.returnValue(of([]));
+        api.getLocationFilterOptions.and.returnValue(of([]));
+
     });
 
     it('starts with empty state', async () =>
@@ -151,6 +168,10 @@ describe('MyCitiesStoreService', () =>
     {
         const subj = new Subject<MyCityDto[]>();
         api.getAllCities.and.returnValue(subj.asObservable());
+        api.getActivePhotoKeys.and.returnValue(of([]));
+        api.getStayDurations.and.returnValue(of([]));
+        api.getDecades.and.returnValue(of([]));
+        api.getLocationFilterOptions.and.returnValue(of([]));
 
         const obs1 = service.ensureLoaded();
         const obs2 = service.ensureLoaded();
@@ -192,6 +213,11 @@ describe('MyCitiesStoreService', () =>
             [
                 city({ city: 'A', lat: 1, lon: 2, stayDuration: '1 mo', decades: '1990s' }),
             ]));
+
+        api.getActivePhotoKeys.and.returnValue(of([]));
+        api.getStayDurations.and.returnValue(of([]));
+        api.getDecades.and.returnValue(of([]));
+        api.getLocationFilterOptions.and.returnValue(of([]));
 
         const first = await firstValueFrom(service.ensureLoaded());
         expect(first.map(x => x.city)).toEqual(['A']);
@@ -311,7 +337,12 @@ describe('MyCitiesStoreService', () =>
             city({ city: 'C', lat: 5, lon: 6, stayDuration: '1 mo', decades: '2010s' }),
         ]));
 
-    await firstValueFrom(service.ensureLoaded());
+        api.getActivePhotoKeys.and.returnValue(of([]));
+        api.getStayDurations.and.returnValue(of(['1 mo', '2 mos']));
+        api.getDecades.and.returnValue(of(['1980s', '1990s', '2000s', '2010s']));
+        api.getLocationFilterOptions.and.returnValue(of([]));
+
+        await firstValueFrom(service.ensureLoaded());
 
         // No filters => all
         let filtered = await firstValueFrom(service.filteredCities$.pipe(take(1)));
@@ -444,6 +475,11 @@ describe('MyCitiesStoreService', () =>
             city({ city: 'EmptyDecades', lat: 3, lon: 4, stayDuration: '1 mo', decades: '' }),
         ]));
 
+        api.getActivePhotoKeys.and.returnValue(of([]));
+        api.getStayDurations.and.returnValue(of([]));
+        api.getDecades.and.returnValue(of([]));
+        api.getLocationFilterOptions.and.returnValue(of([]));
+
         await firstValueFrom(service.ensureLoaded());
 
         service.setDecadeFilter('1990s');
@@ -461,36 +497,16 @@ describe('MyCitiesStoreService', () =>
         expect(durationSortKey(undefined as unknown as string)).toBe(Number.POSITIVE_INFINITY);
     });
 
-    it('filteredCities$ treats null/undefined stayDuration and decades as empty strings (covers ?? "" branches)', async () =>
-    {
-        api.getAllCities.and.returnValue(of([
-            // should match when filters are set
-            city({ city: 'Good', lat: 1, lon: 2, stayDuration: '1 mo', decades: '1990s' }),
-
-            // stayDuration is undefined -> cStay becomes '' -> should be excluded when stay filter is set
-            city({ city: 'NoStay', lat: 3, lon: 4, stayDuration: undefined, decades: '1990s' }),
-
-            // decades is undefined -> cDecadesRaw becomes '' -> decades[] becomes [] -> excluded when decade filter is set
-            city({ city: 'NoDecades', lat: 5, lon: 6, stayDuration: '1 mo', decades: undefined }),
-        ]));
-
-        await firstValueFrom(service.ensureLoaded());
-
-        service.setStayDurationFilter('1 mo');
-        service.setDecadeFilter('1990s');
-
-        const filtered = await firstValueFrom(service.filteredCities$.pipe(take(1)));
-        expect(filtered.map(x => x.city)).toEqual(['Good']);
-    });
-
-    it('filteredCities$ treats null/undefined stayDuration and decades as empty strings (covers ?? "" branches)', async () =>
+    it('filteredCities$ treats undefined stayDuration and decades as empty strings', async () =>
     {
         const good: MyCityDto =
         {
             id: 1,
             city: 'Good',
             country: 'Country',
+            countryId: 0,
             region: '',
+            regionId: 0,
             notes: '',
             lat: 1,
             lon: 2,
@@ -499,32 +515,43 @@ describe('MyCitiesStoreService', () =>
             photoKey: null,
         };
 
-        // IMPORTANT: do NOT use city() helper here, because it converts undefined/null to ''
-        const noStay = {
+        const noStay =
+        {
             id: 2,
             city: 'NoStay',
             country: 'Country',
+            countryId: 0,
             region: '',
+            regionId: 0,
             notes: '',
             lat: 3,
             lon: 4,
-            stayDuration: undefined,     // <-- forces stayDuration ?? '' branch
+            stayDuration: undefined,
             decades: '1990s',
+            photoKey: null,
         } as unknown as MyCityDto;
 
-        const noDecades = {
+        const noDecades =
+        {
             id: 3,
             city: 'NoDecades',
             country: 'Country',
+            countryId: 0,
             region: '',
+            regionId: 0,
             notes: '',
             lat: 5,
             lon: 6,
             stayDuration: '1 mo',
-            decades: undefined,          // <-- forces decades ?? '' branch
+            decades: undefined,
+            photoKey: null,
         } as unknown as MyCityDto;
 
         api.getAllCities.and.returnValue(of([good, noStay, noDecades]));
+        api.getStayDurations.and.returnValue(of([]));
+        api.getDecades.and.returnValue(of([]));
+        api.getLocationFilterOptions.and.returnValue(of([]));
+        api.getActivePhotoKeys.and.returnValue(of([]));
 
         await firstValueFrom(service.ensureLoaded());
 
@@ -532,9 +559,156 @@ describe('MyCitiesStoreService', () =>
         service.setDecadeFilter('1990s');
 
         const filtered = await firstValueFrom(service.filteredCities$.pipe(take(1)));
+
         expect(filtered.map(x => x.city)).toEqual(['Good']);
     });
 
+    it('ensureLoaded loads location filter options', async () =>
+    {
+       const locationOptions: LocationFilterOption[] =
+        [
+            { filterType: 'region', filterId: 1, filterValue: 'region:1', filterLabel: 'Europe' },
+            { filterType: 'country', filterId: 10, filterValue: 'country:10', filterLabel: 'France' },
+        ];
+
+        api.getAllCities.and.returnValue(of([
+            city({ city: 'Paris', lat: 48.8566, lon: 2.3522 }),
+        ]));
+
+        api.getActivePhotoKeys.and.returnValue(of([]));
+        api.getLocationFilterOptions.and.returnValue(of(locationOptions));
+
+        await firstValueFrom(service.ensureLoaded());
+
+        const locations = await firstValueFrom(service.locations$.pipe(take(1)));
+
+        expect(api.getLocationFilterOptions).toHaveBeenCalled();
+        expect(locations).toEqual(locationOptions);
+    });
+
+    it('setLocationFilter trims values and converts empty string to null', async () =>
+    {
+        service.setLocationFilter('  country:10  ');
+
+        let value = await firstValueFrom(service.locationFilter$.pipe(take(1)));
+        expect(value).toBe('country:10');
+
+        service.setLocationFilter('   ');
+
+        value = await firstValueFrom(service.locationFilter$.pipe(take(1)));
+        expect(value).toBeNull();
+    });
+
+    it('filteredCities$ filters by country location', async () =>
+    {
+        api.getAllCities.and.returnValue(of([
+            city({ city: 'Paris', lat: 48, lon: 2, countryId: 10, regionId: 1 }),
+            city({ city: 'Rome', lat: 41, lon: 12, countryId: 20, regionId: 1 }),
+        ]));
+
+        await firstValueFrom(service.ensureLoaded());
+
+        service.setLocationFilter('country:10');
+
+        const filtered = await firstValueFrom(service.filteredCities$.pipe(take(1)));
+
+        expect(filtered.map(x => x.city)).toEqual(['Paris']);
+    });
+
+    it('filteredCities$ filters by region location', async () =>
+    {
+        api.getAllCities.and.returnValue(of([
+            city({ city: 'Paris', lat: 48, lon: 2, countryId: 10, regionId: 1 }),
+            city({ city: 'Tokyo', lat: 35, lon: 139, countryId: 30, regionId: 2 }),
+        ]));
+
+        await firstValueFrom(service.ensureLoaded());
+
+        service.setLocationFilter('region:1');
+
+        const filtered = await firstValueFrom(service.filteredCities$.pipe(take(1)));
+
+        expect(filtered.map(x => x.city)).toEqual(['Paris']);
+    });
+
+    it('filteredCities$ combines location filter with stay duration and decade filters', async () =>
+    {
+        api.getAllCities.and.returnValue(of([
+            city({ city: 'Paris', lat: 48, lon: 2, countryId: 10, regionId: 1, stayDuration: '1 mo', decades: '1990s, 2000s' }),
+            city({ city: 'Lyon', lat: 45, lon: 4, countryId: 10, regionId: 1, stayDuration: '2 mos', decades: '1990s' }),
+            city({ city: 'Rome', lat: 41, lon: 12, countryId: 20, regionId: 1, stayDuration: '1 mo', decades: '2000s' }),
+        ]));
+
+        await firstValueFrom(service.ensureLoaded());
+
+        service.setLocationFilter('country:10');
+        service.setStayDurationFilter('1 mo');
+        service.setDecadeFilter('2000s');
+
+        const filtered = await firstValueFrom(service.filteredCities$.pipe(take(1)));
+
+        expect(filtered.map(x => x.city)).toEqual(['Paris']);
+    });
+
+    it('hasPhotos returns true only for active positive photo keys', () =>
+    {
+        service.setActivePhotoKeys([1, 2, 0, -1, Number.NaN]);
+
+        expect(service.hasPhotos(1)).toBeTrue();
+        expect(service.hasPhotos(2)).toBeTrue();
+        expect(service.hasPhotos(0)).toBeFalse();
+        expect(service.hasPhotos(-1)).toBeFalse();
+        expect(service.hasPhotos(null)).toBeFalse();
+        expect(service.hasPhotos(undefined)).toBeFalse();
+    });
+
+    it('filteredCities$ filters by region location', async () =>
+    {
+        api.getAllCities.and.returnValue(of([
+            city({ city: 'A', regionId: 1, countryId: 10 }),
+            city({ city: 'B', regionId: 2, countryId: 20 }),
+        ]));
+
+        await firstValueFrom(service.ensureLoaded());
+
+        service.setLocationFilter('region:1');
+
+        const filtered = await firstValueFrom(service.filteredCities$.pipe(take(1)));
+
+        expect(filtered.map(x => x.city)).toEqual(['A']);
+    });
+
+    it('filteredCities$ filters by country location', async () =>
+    {
+        api.getAllCities.and.returnValue(of([
+            city({ city: 'A', regionId: 1, countryId: 10 }),
+            city({ city: 'B', regionId: 2, countryId: 20 }),
+        ]));
+
+        await firstValueFrom(service.ensureLoaded());
+
+        service.setLocationFilter('country:20');
+
+        const filtered = await firstValueFrom(service.filteredCities$.pipe(take(1)));
+
+        expect(filtered.map(x => x.city)).toEqual(['B']);
+    });
+
+    it('filteredCities$ ignores unknown location filter type', async () =>
+    {
+        api.getAllCities.and.returnValue(of([
+            city({ city: 'A', regionId: 1, countryId: 10 }),
+            city({ city: 'B', regionId: 2, countryId: 20 }),
+        ]));
+
+        await firstValueFrom(service.ensureLoaded());
+
+        service.setLocationFilter('unknown:999');
+
+        const filtered = await firstValueFrom(service.filteredCities$.pipe(take(1)));
+
+        expect(filtered.map(x => x.city)).toEqual(['A', 'B']);
+    });
 
 
 });

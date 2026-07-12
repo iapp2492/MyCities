@@ -40,13 +40,28 @@ namespace MyCitiesDataAccess
         public async Task<IReadOnlyList<MyCityDto>> GetAllCitiesAsync()
         {
             // View already returns spreadsheet-shaped rows
-            var rows = await _db.vw_MyCity_Spreadsheet
-                .AsNoTracking()
+            // Project into DTO at the database level to avoid
+            // materializing entity objects unnecessarily.
+            var cities = await _db.vw_MyCity_Spreadsheet
                 .OrderBy(x => x.Country)
                 .ThenBy(x => x.City)
+                .Select(x => new MyCityDto
+                {
+                    City = x.City,
+                    Country = x.Country,
+                    CountryId = x.CountryId,
+                    Region = x.Region,
+                    RegionId = x.RegionId,
+                    Lat = (double)x.Lat,
+                    Lon = (double)x.Lon,
+                    StayDuration = x.StayDuration,
+                    Decades = x.Decades ?? string.Empty,
+                    Notes = x.Notes,
+                    PhotoKey = x.PhotoKey
+                })
                 .ToListAsync();
 
-            return rows.Select(ToDto).ToList();
+            return cities;
         }
 
         public Task ReloadAsync()
