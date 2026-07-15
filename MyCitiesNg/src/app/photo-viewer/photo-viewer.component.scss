@@ -121,6 +121,7 @@
 
 .caption-text {
     min-width: 0;
+    white-space: pre-line;
 
     /* default: clamp to 2 lines */
     display: -webkit-box;
@@ -145,6 +146,8 @@
 
     mask-image: none;
     -webkit-mask-image: none;
+
+    white-space: pre-line;
 }
 
 .caption-toggle {
