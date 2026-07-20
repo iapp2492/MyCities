@@ -1,2 +1,3 @@
 # Disable IDE0028 (Collection initialization can be simplified)
+# Prefer explicit collection construction over IDE0028 collection-initializer suggestions.
 dotnet_diagnostic.IDE0028.severity = none

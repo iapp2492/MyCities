@@ -1,6 +1,5 @@
 ﻿using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using MyCitiesDataAccess;                 
 using MyCitiesDataAccess.Dtos;
 using Serilog.Context;

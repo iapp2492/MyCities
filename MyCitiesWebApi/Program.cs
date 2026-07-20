@@ -76,9 +76,11 @@ namespace MyCitiesWebApi
             #region Framework Services
 
 
-            builder.Services.AddControllers();
+            builder.Services.AddControllers(options =>
+            {
+                options.Filters.Add<SerilogActionEnricherFilter>();
+            });
 
-            // Swagger (Development only at runtime, but registration is fine always)
             builder.Services.AddEndpointsApiExplorer(); // Collects metadata about every endpoint contained in the app
             builder.Services.AddSwaggerGen(); // “When someone requests /swagger/v1/swagger.json, dynamically generate an OpenAPI document describing the API.”
 
@@ -89,7 +91,9 @@ namespace MyCitiesWebApi
                     p.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
 
                 options.AddPolicy("AllowOnlyMyCities", p =>
-                    p.WithOrigins("https://www.mycities.example") // change later after deployment
+                    p.WithOrigins(
+                        "https://travelswithcal.com",
+                        "https://www.travelswithcal.com") 
                      .AllowAnyMethod()
                      .AllowAnyHeader());
             });
@@ -130,12 +134,33 @@ namespace MyCitiesWebApi
             builder.Services
                 .AddOptions<MyCitiesSettings>()
                 .Bind(builder.Configuration.GetSection("MyCitiesSettings"))
+                .Validate(
+                    settings => settings.SQLSettings is not null,
+                    "The MyCities SQL settings section is missing.")
+                .Validate(
+                    settings => !string.IsNullOrWhiteSpace(settings.SQLSettings?.Server),
+                    "The MyCities SQL server setting is missing.")
+                .Validate(
+                    settings => !string.IsNullOrWhiteSpace(settings.SQLSettings?.Database),
+                    "The MyCities SQL database setting is missing.")
                 .ValidateOnStart();
 
-            builder.Services.AddControllers(options =>
+
+            if (!builder.Environment.IsDevelopment())
             {
-                options.Filters.Add<SerilogActionEnricherFilter>();
-            });
+                builder.Services
+                    .AddOptions<SwaggerAuthenticationSettings>()
+                    .Bind(
+                        builder.Configuration.GetSection(
+                            "SwaggerAuthentication"))
+                    .Validate(
+                        settings => !string.IsNullOrWhiteSpace(settings.Username),
+                        "The Swagger authentication username is missing.")
+                    .Validate(
+                        settings => !string.IsNullOrWhiteSpace(settings.Password),
+                        "The Swagger authentication password is missing.")
+                    .ValidateOnStart();
+            }
 
 
             #endregion
@@ -166,6 +191,11 @@ namespace MyCitiesWebApi
             });
 
             app.UseMiddleware<GlobalExceptionMiddleware>();
+
+            if (!app.Environment.IsDevelopment())
+            {
+                app.UseMiddleware<SwaggerBasicAuthenticationMiddleware>();
+            }
 
             app.UseSwagger();
             app.UseSwaggerUI(c =>
