@@ -101,7 +101,7 @@ namespace MyCities.Tests.Filters
         }
 
         [Fact]
-        public async Task SerilogActionEnricherFilter_Allows_Null_Controller_And_Action()
+        public async Task SerilogActionEnricherFilter_Uses_Unknown_When_Controller_And_Action_Are_Missing()
         {
             // Arrange
             var sink = new InMemorySink();
@@ -155,15 +155,15 @@ namespace MyCities.Tests.Filters
                     executingContext,
                     async () =>
                     {
-                        Log.Information("Inside action (null controller/action)");
+                        Log.Information("Inside action (unknown controller/action)");
                         return await Task.FromResult(executedContext);
                     }
                 );
 
                 // Assert
-                var inside = sink.Events.Single(e => e.MessageTemplate.Text == "Inside action (null controller/action)");
-                AssertPropertyIsNull(inside, "Controller");
-                AssertPropertyIsNull(inside, "Action");
+                var inside = sink.Events.Single(e => e.MessageTemplate.Text == "Inside action (unknown controller/action)");
+                AssertPropertyEquals(inside, "Controller", "(unknown)");
+                AssertPropertyEquals(inside, "Action", "(unknown)");
                 AssertPropertyEquals(inside, "TraceId", "trace-xyz");
                 AssertPropertyEquals(inside, "RequestPath", "/api/Debugging/GetEnvironmentInfo");
             }

@@ -1,15 +1,16 @@
 ﻿using Serilog.Context;
-using Serilog;
 using System.Net;
 
 namespace MyCitiesWebApi.Middleware
 {
     public sealed class GlobalExceptionMiddleware
     {
-        private readonly RequestDelegate _next; 
+        private readonly RequestDelegate _next;
         private readonly ILogger<GlobalExceptionMiddleware> _logger;
 
-        public GlobalExceptionMiddleware(RequestDelegate next, ILogger<GlobalExceptionMiddleware> logger)
+        public GlobalExceptionMiddleware(
+            RequestDelegate next,
+            ILogger<GlobalExceptionMiddleware> logger)
         {
             _next = next;
             _logger = logger;
@@ -26,25 +27,41 @@ namespace MyCitiesWebApi.Middleware
                 var endpoint = context.GetEndpoint();
                 var endpointName = endpoint?.DisplayName;
 
-                var controller = context.Request.RouteValues.TryGetValue("controller", out var c)
-                    ? c?.ToString()
-                    : null;
+                var controller =
+                    context.Request.RouteValues.TryGetValue("controller", out var c)
+                        ? c?.ToString()
+                        : null;
 
-                var action = context.Request.RouteValues.TryGetValue("action", out var a)
-                    ? a?.ToString()
-                    : null;
+                var action =
+                    context.Request.RouteValues.TryGetValue("action", out var a)
+                        ? a?.ToString()
+                        : null;
 
-                using (LogContext.PushProperty("TraceId", context.TraceIdentifier))
-                using (LogContext.PushProperty("RequestPath", context.Request.Path.ToString()))
-                using (LogContext.PushProperty("Controller", controller))
-                using (LogContext.PushProperty("Action", action))
-                using (LogContext.PushProperty("EndpointName", endpointName))
+                using (LogContext.PushProperty(
+                           "TraceId",
+                           context.TraceIdentifier))
+                using (LogContext.PushProperty(
+                           "RequestPath",
+                           context.Request.Path.ToString()))
+                using (LogContext.PushProperty("Controller", controller ?? "(unknown)"))
+                using (LogContext.PushProperty("Action", action ?? "(unknown)"))
+                using (LogContext.PushProperty("EndpointName", endpointName ?? "(unknown)"))
                 {
-                    // Use injected logger; Serilog sinks will still pick this up when configured.
                     _logger.LogError(ex, "Unhandled exception occurred.");
+
+                    if (context.Response.HasStarted)
+                    {
+                        _logger.LogWarning(
+                            "The response has already started. " +
+                            "The global exception middleware cannot write an error response.");
+
+                        throw;
+                    }
                 }
 
-                context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
+                context.Response.Clear();
+                context.Response.StatusCode =
+                    (int)HttpStatusCode.InternalServerError;
                 context.Response.ContentType = "application/json";
 
                 await context.Response.WriteAsJsonAsync(new

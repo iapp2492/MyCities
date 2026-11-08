@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -10,6 +11,9 @@ using System.Text.Json;
 
 namespace MyCitiesWebApi.Tests.Controllers
 {
+    // Integration tests use a copy of the real database which is created using a script. The database is created in a temporary location and deleted after the tests are run.
+    // The tests use the real MyCitiesDbContext and MyCitiesSettings classes, but the controller is tested in isolation using mocks for the logger and environment.
+
     public class DebuggingControllerTests
     {
         private const string EnvironmentVariableName = "ASPNETCORE_ENVIRONMENT";
@@ -17,92 +21,93 @@ namespace MyCitiesWebApi.Tests.Controllers
         [Fact]
         public void GetEnvironmentInfo_Returns_JsonResult_WithExpectedValues()
         {
-            var originalEnv = Environment.GetEnvironmentVariable(EnvironmentVariableName);
-            Environment.SetEnvironmentVariable(EnvironmentVariableName, "UnitTest");
+            var settings = CreateSettings(
+                server: "TestServer",
+                database: "TestDb");
 
-            try
-            {
-                var settings = CreateSettings(server: "TestServer", database: "TestDb"); 
+            IOptions<MyCitiesSettings> options =
+                Microsoft.Extensions.Options.Options.Create(settings);
 
-                var options = Microsoft.Extensions.Options.Options.Create(settings);
+            using var db = CreateDbContextInMemory(options);
 
+            var environment = new Mock<IWebHostEnvironment>();
+            environment
+                .SetupGet(x => x.EnvironmentName)
+                .Returns("UnitTest");
 
-                using var db = CreateDbContextInMemory(options);
-                var logger = new Mock<ILogger<DebuggingController>>();
+            var logger = new Mock<ILogger<DebuggingController>>();
 
-                var controller = new DebuggingController(options, db, logger.Object);
+            var controller = new DebuggingController(
+                options,
+                environment.Object,
+                db,
+                logger.Object);
 
-                var result = controller.GetEnvironmentInfo();
+            IActionResult result = controller.GetEnvironmentInfo();
 
-                var jsonResult = Assert.IsType<JsonResult>(result);
-                Assert.NotNull(jsonResult.Value);
+            var jsonResult = Assert.IsType<JsonResult>(result);
+            Assert.NotNull(jsonResult.Value);
 
-                var json = JsonSerializer.Serialize(jsonResult.Value);
+            string json = JsonSerializer.Serialize(jsonResult.Value);
 
-                Assert.Contains("\"ServerIntro\"", json);
-                Assert.Contains("current attached database", json);
-
-                Assert.Contains("\"Server\":\"TestServer\"", json);
-                Assert.Contains("\"Database\":\"TestDb\"", json);
-
-                // Environment can be null if not set, but we set it above.
-                Assert.Contains("\"Environment\":\"UnitTest\"", json);
-            }
-            finally
-            {
-                Environment.SetEnvironmentVariable(EnvironmentVariableName, originalEnv);
-            }
+            Assert.Contains("\"ServerIntro\"", json);
+            Assert.Contains("current attached database", json);
+            Assert.Contains("\"Server\":\"TestServer\"", json);
+            Assert.Contains("\"Database\":\"TestDb\"", json);
+            Assert.Contains("\"Environment\"", json);
+            Assert.Contains("\"Name\":\"UnitTest\"", json);
         }
 
         [Fact]
         public void GetRuntime_Returns_OkObjectResult_WithExpectedValues()
         {
-            var originalEnv = Environment.GetEnvironmentVariable(EnvironmentVariableName);
-            Environment.SetEnvironmentVariable(EnvironmentVariableName, "UnitTest");
+            var settings = CreateSettings(server: "Any", database: "Any");
 
-            try
-            {
-                var settings = CreateSettings(server: "Any", database: "Any");
+            var options = Microsoft.Extensions.Options.Options.Create(settings);
 
-                var options = Microsoft.Extensions.Options.Options.Create(settings);
+            using var db = CreateDbContextInMemory(options);
 
-                using var db = CreateDbContextInMemory(options);
-                var logger = new Mock<ILogger<DebuggingController>>();
+            var environment = new Mock<IWebHostEnvironment>();
+            environment
+                .SetupGet(x => x.EnvironmentName)
+                .Returns("UnitTest");
 
-                var controller = new DebuggingController(options, db, logger.Object);
+            var logger = new Mock<ILogger<DebuggingController>>();
 
-                var result = controller.GetRuntime();
+            var controller = new DebuggingController(
+                options,
+                environment.Object,
+                db,
+                logger.Object);
 
-                var ok = Assert.IsType<OkObjectResult>(result);
-                Assert.NotNull(ok.Value);
+            var result = controller.GetRuntime();
 
-                var json = JsonSerializer.Serialize(ok.Value);
+            var ok = Assert.IsType<OkObjectResult>(result);
+            Assert.NotNull(ok.Value);
 
-                Assert.Contains("\"Framework\"", json);
-                Assert.Contains("\"OS\"", json);
-                Assert.Contains("\"ProcessArchitecture\"", json);
-                Assert.Contains("\"OSArchitecture\"", json);
+            var json = JsonSerializer.Serialize(ok.Value);
 
-                Assert.Contains("\"Environment\":\"UnitTest\"", json);
-            }
-            finally
-            {
-                Environment.SetEnvironmentVariable(EnvironmentVariableName, originalEnv);
-            }
+            Assert.Contains("\"Framework\"", json);
+            Assert.Contains("\"OS\"", json);
+            Assert.Contains("\"ProcessArchitecture\"", json);
+            Assert.Contains("\"OSArchitecture\"", json);
+            Assert.Contains("\"Environment\":\"UnitTest\"", json);
         }
 
         [Fact]
         public async Task TestDatabase_Returns_Ok_WithProviderAndConnectivity_WhenSqlServer()
         {
             var settings = CreateSettings(server: "SqlServer", database: "SqlServer");
-            var optionsSettings = Microsoft.Extensions.Options.Options.Create(settings);
+            var optionsSettings =
+                Microsoft.Extensions.Options.Options.Create(settings);
 
             var dbName = "MyCities_Test_" + Guid.NewGuid().ToString("N");
 
-            // Prefer an env var so the test can run on different machines/CI.
+            // Prefer an environment variable so the test can run on different machines/CI.
             // Example:
             //   setx MYCITIES_TEST_SQLSERVER "Server=Foothill\\SQLSERVER16;Trusted_Connection=True;TrustServerCertificate=True;"
-            var baseConnStr = Environment.GetEnvironmentVariable("MYCITIES_TEST_SQLSERVER")
+            var baseConnStr =
+                Environment.GetEnvironmentVariable("MYCITIES_TEST_SQLSERVER")
                 ?? "Server=(localdb)\\MSSQLLocalDB;Trusted_Connection=True;TrustServerCertificate=True;";
 
             var connStr = $"{baseConnStr};Database={dbName};";
@@ -117,8 +122,18 @@ namespace MyCitiesWebApi.Tests.Controllers
             {
                 await db.Database.EnsureCreatedAsync();
 
+                var environment = new Mock<IWebHostEnvironment>();
+                environment
+                    .SetupGet(x => x.EnvironmentName)
+                    .Returns("UnitTest");
+
                 var logger = new Mock<ILogger<DebuggingController>>();
-                var controller = new DebuggingController(optionsSettings, db, logger.Object);
+
+                var controller = new DebuggingController(
+                    optionsSettings,
+                    environment.Object,
+                    db,
+                    logger.Object);
 
                 var actionResult = await controller.TestDatabase();
 
@@ -128,15 +143,17 @@ namespace MyCitiesWebApi.Tests.Controllers
                 var json = JsonSerializer.Serialize(ok.Value);
 
                 Assert.Contains("\"CanConnect\":true", json);
-                Assert.Contains("SqlServer", json, StringComparison.OrdinalIgnoreCase);
+                Assert.Contains(
+                    "SqlServer",
+                    json,
+                    StringComparison.OrdinalIgnoreCase);
             }
             finally
             {
-                // Cleanup so your instance doesn't accumulate test DBs.
+                // Cleanup so your instance doesn't accumulate test databases.
                 await db.Database.EnsureDeletedAsync();
             }
         }
-
         [Fact]
         public async Task TestDatabase_Returns_500_WithErrorPayload_WhenGetDbConnectionThrows()
         {
@@ -147,8 +164,18 @@ namespace MyCitiesWebApi.Tests.Controllers
             // InMemory is NOT relational -> GetDbConnection() throws -> caught -> 500 returned.
             using var db = CreateDbContextInMemory(options);
 
+            var environment = new Mock<IWebHostEnvironment>();
+            environment
+                .SetupGet(x => x.EnvironmentName)
+                .Returns("UnitTest");
+
             var logger = new Mock<ILogger<DebuggingController>>();
-            var controller = new DebuggingController(options, db, logger.Object);
+
+            var controller = new DebuggingController(
+                options,
+                environment.Object,
+                db,
+                logger.Object);
 
             var actionResult = await controller.TestDatabase();
 
@@ -175,8 +202,13 @@ namespace MyCitiesWebApi.Tests.Controllers
 
             using var db = CreateDbContextInMemory(options);
 
+            var environment = new Mock<IWebHostEnvironment>();
+            environment
+                .SetupGet(x => x.EnvironmentName)
+                .Returns("UnitTest");
+
             var logger = new Mock<ILogger<DebuggingController>>();
-            var controller = new DebuggingController(options, db, logger.Object);
+            var controller = new DebuggingController(options, environment.Object, db, logger.Object);
 
             var result = controller.SerilogTestInfo();
 
@@ -202,8 +234,14 @@ namespace MyCitiesWebApi.Tests.Controllers
 
             using var db = CreateDbContextInMemory(options);
 
+
+            var environment = new Mock<IWebHostEnvironment>();
+            environment
+                .SetupGet(x => x.EnvironmentName)
+                .Returns("UnitTest");
+
             var logger = new Mock<ILogger<DebuggingController>>();
-            var controller = new DebuggingController(options, db, logger.Object);
+            var controller = new DebuggingController(options, environment.Object, db, logger.Object);
 
             var result = controller.SerilogTestWarning();
 
@@ -229,8 +267,13 @@ namespace MyCitiesWebApi.Tests.Controllers
 
             using var db = CreateDbContextInMemory(options);
 
+            var environment = new Mock<IWebHostEnvironment>();
+            environment
+                .SetupGet(x => x.EnvironmentName)
+                .Returns("UnitTest");
+
             var logger = new Mock<ILogger<DebuggingController>>();
-            var controller = new DebuggingController(options, db, logger.Object);
+            var controller = new DebuggingController(options, environment.Object, db, logger.Object);
 
             var result = controller.SerilogTestErrorCaught();
 
@@ -249,19 +292,30 @@ namespace MyCitiesWebApi.Tests.Controllers
         }
 
         [Fact]
-        public void SerilogTestUnhandledException_Throws()
+        public void SerilogTestUnhandledException_ThrowsInvalidOperationException()
         {
             var settings = CreateSettings(server: "Any", database: "Any");
-
             var options = Microsoft.Extensions.Options.Options.Create(settings);
 
             using var db = CreateDbContextInMemory(options);
 
-            var logger = new Mock<ILogger<DebuggingController>>();
-            var controller = new DebuggingController(options, db, logger.Object);
+            var environment = new Mock<IWebHostEnvironment>();
+            environment
+                .SetupGet(x => x.EnvironmentName)
+                .Returns("UnitTest");
 
-            var ex = Assert.Throws<Exception>(() => controller.SerilogTestUnhandledException());
-            Assert.Contains("Artificial unhandled exception", ex.Message);
+            var logger = new Mock<ILogger<DebuggingController>>();
+
+            var controller = new DebuggingController(
+                options,
+                environment.Object,
+                db,
+                logger.Object);
+
+            var ex = Assert.Throws<InvalidOperationException>(
+                () => controller.SerilogTestUnhandledException());
+
+            Assert.Equal("Artificial unhandled exception.", ex.Message);
         }
 
 #endif

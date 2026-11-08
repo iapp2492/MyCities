@@ -6,7 +6,8 @@ using MyCitiesDataAccess.Models;
 
 namespace MyCitiesDataAccess
 {
-    // Historically, this app was initially developed using an Excel spreadsheet as the source of data but eventually the data source was transitioned to a SQL Server database.
+    // Historically, this app was initially developed using an Excel spreadsheet (MyCitiesData-Legacy.xlsx) as the source of data but eventually the data source was transitioned
+    // to a SQL Server database. The spreadsheet is retained only as a historical artifact illustrating the application's evolution.
     // As new features were added, they were not included in the Excel data service.  In order to satisfy the Liskov Substituion Principle and the Interface Segregation Principle,
     // the methods for new features were placed in new targeted interfaces (e.g. IMyCitiesPhotoReader) and implemented only in this class (not in the deprecated Excel data service). 
     // IMyCitiesListReader, IMyCitiesDetailReader, IMyCitiesPhotoReader, IMyCitiesFilterReader, IMyCitiesAdminDataService have been combined into a facade interface IMyCitiesDataService

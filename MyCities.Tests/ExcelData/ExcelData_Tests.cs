@@ -49,7 +49,7 @@ namespace MyCities.Tests.ExcelData
         {
             var logger = new ListLogger<ExcelMyCitiesDataService>();
 
-            var missingPath = Path.Combine(_tempDir, "MyCitiesData.xlsx");
+            var missingPath = Path.Combine(_tempDir, "MyCitiesData-Legacy.xlsx");
 
             var sut = new ExcelMyCitiesDataService(
                 excelPath: missingPath,
@@ -58,7 +58,7 @@ namespace MyCities.Tests.ExcelData
 
             var ex = await Assert.ThrowsAsync<FileNotFoundException>(async () => await sut.GetAllCitiesAsync());
 
-            Assert.Contains("MyCitiesData.xlsx not found", ex.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("MyCitiesData-Legacy.xlsx not found", ex.Message, StringComparison.OrdinalIgnoreCase);
             Assert.Equal(missingPath, ex.FileName);
         }
 

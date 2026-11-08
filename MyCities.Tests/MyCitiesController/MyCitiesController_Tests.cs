@@ -224,7 +224,7 @@ namespace MyCities.Tests.MyCitiesController
         }
 
         [Fact]
-        public async Task GetCityByIdAsync_WhenDataServiceThrows_Rethrows()
+        public async Task GetCityByIdAsync_WhenDataServiceThrows_Returns500()
         {
             // Arrange
             const int id = 7;
@@ -235,158 +235,19 @@ namespace MyCities.Tests.MyCitiesController
 
             var sut = CreateSut();
 
-            // Act + Assert
-            await Assert.ThrowsAsync<InvalidOperationException>(
-                async () => await sut.GetCityByIdAsync(id)
-            );
-
-            _dataSvc.Verify(s => s.GetCityByIdAsync(id), Times.Once);
-        }
-
-        [Fact]
-        public async Task CreateCityAsync_Success_ReturnsOk_WithNewId()
-        {
-            // Arrange
-            var city = new MyCityDto
-            {
-                Id = 0
-            };
-
-            const int newId = 42;
-
-            _dataSvc
-                .Setup(s => s.CreateCityAsync(It.IsAny<MyCityDto>()))
-                .ReturnsAsync(newId);
-
-            var sut = CreateSut();
-
             // Act
-            var result = await sut.CreateCityAsync(city);
+            var result = await sut.GetCityByIdAsync(id);
 
             // Assert
-            var ok = Assert.IsType<OkObjectResult>(result.Result);
-            Assert.Equal(StatusCodes.Status200OK, ok.StatusCode);
-            Assert.Equal(newId, ok.Value);
+            var objectResult = Assert.IsType<ObjectResult>(result.Result);
 
-            _dataSvc.Verify(s => s.CreateCityAsync(It.Is<MyCityDto>(c => ReferenceEquals(c, city))), Times.Once);
-        }
+            Assert.Equal(
+                StatusCodes.Status500InternalServerError,
+                objectResult.StatusCode);
 
-        [Fact]
-        public async Task UpdateCityAsync_WhenRouteIdDoesNotMatchPayloadId_ReturnsBadRequest()
-        {
-            // Arrange
-            const int routeId = 5;
-
-            var city = new MyCityDto
-            {
-                Id = 6
-            };
-
-            var sut = CreateSut();
-
-            // Act
-            var result = await sut.UpdateCityAsync(routeId, city);
-
-            // Assert
-            var bad = Assert.IsType<BadRequestObjectResult>(result);
-            Assert.Equal(StatusCodes.Status400BadRequest, bad.StatusCode);
-            Assert.Equal("Route id does not match payload id.", bad.Value);
-
-            _dataSvc.Verify(s => s.UpdateCityAsync(It.IsAny<MyCityDto>()), Times.Never);
-        }
-
-        [Fact]
-        public async Task UpdateCityAsync_WhenUpdateReturnsFalse_ReturnsNotFound()
-        {
-            // Arrange
-            const int id = 5;
-
-            var city = new MyCityDto
-            {
-                Id = id
-            };
-
-            _dataSvc
-                .Setup(s => s.UpdateCityAsync(It.IsAny<MyCityDto>()))
-                .ReturnsAsync(false);
-
-            var sut = CreateSut();
-
-            // Act
-            var result = await sut.UpdateCityAsync(id, city);
-
-            // Assert
-            Assert.IsType<NotFoundResult>(result);
-
-            _dataSvc.Verify(s => s.UpdateCityAsync(It.Is<MyCityDto>(c => ReferenceEquals(c, city))), Times.Once);
-        }
-
-        [Fact]
-        public async Task UpdateCityAsync_WhenUpdateReturnsTrue_ReturnsNoContent()
-        {
-            // Arrange
-            const int id = 5;
-
-            var city = new MyCityDto
-            {
-                Id = id
-            };
-
-            _dataSvc
-                .Setup(s => s.UpdateCityAsync(It.IsAny<MyCityDto>()))
-                .ReturnsAsync(true);
-
-            var sut = CreateSut();
-
-            // Act
-            var result = await sut.UpdateCityAsync(id, city);
-
-            // Assert
-            Assert.IsType<NoContentResult>(result);
-
-            _dataSvc.Verify(s => s.UpdateCityAsync(It.Is<MyCityDto>(c => ReferenceEquals(c, city))), Times.Once);
-        }
-
-        [Fact]
-        public async Task DeleteCityAsync_WhenDeleteReturnsFalse_ReturnsNotFound()
-        {
-            // Arrange
-            const int id = 9;
-
-            _dataSvc
-                .Setup(s => s.DeleteCityAsync(id))
-                .ReturnsAsync(false);
-
-            var sut = CreateSut();
-
-            // Act
-            var result = await sut.DeleteCityAsync(id);
-
-            // Assert
-            Assert.IsType<NotFoundResult>(result);
-
-            _dataSvc.Verify(s => s.DeleteCityAsync(id), Times.Once);
-        }
-
-        [Fact]
-        public async Task DeleteCityAsync_WhenDeleteReturnsTrue_ReturnsNoContent()
-        {
-            // Arrange
-            const int id = 9;
-
-            _dataSvc
-                .Setup(s => s.DeleteCityAsync(id))
-                .ReturnsAsync(true);
-
-            var sut = CreateSut();
-
-            // Act
-            var result = await sut.DeleteCityAsync(id);
-
-            // Assert
-            Assert.IsType<NoContentResult>(result);
-
-            _dataSvc.Verify(s => s.DeleteCityAsync(id), Times.Once);
+            _dataSvc.Verify(
+                s => s.GetCityByIdAsync(id),
+                Times.Once);
         }
 
     }

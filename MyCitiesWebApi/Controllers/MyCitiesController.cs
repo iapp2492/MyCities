@@ -14,13 +14,18 @@ namespace MyCitiesWebApi.Controllers
 #else
     [EnableCors("AllowOnlyMyCities")] 
 #endif
+
+    /// Although the application has global exception-handling middleware,
+    // this controller catches exceptions when it can provide additional value,
+    // such as logging method-specific parameter values or returning a more 
+    // appropriate HTTP status code and user-friendly response.
     public class MyCitiesController : ControllerBase
     {
         #region Fields
 
 
         private readonly ILogger<MyCitiesController> _logger;
-        private readonly IMyCitiesDataService _myCitiesDataService;
+        private readonly IMyCitiesDataService _myCitiesDataService; // Repository pattern for data access
 
         #endregion
 
@@ -47,7 +52,7 @@ namespace MyCitiesWebApi.Controllers
 
             using (LogContext.PushProperty("Method", "MyCitiesController.GetAllCitiesAsync"))
             using (LogContext.PushProperty("Args", new { }, destructureObjects: true))
-            using (LogContext.PushProperty("TraceId", traceId))
+            using (LogContext.PushProperty("TraceId", traceId ?? "(unknown)"))
             {
                 const int maxAttempts = 3;
 
@@ -114,8 +119,11 @@ namespace MyCitiesWebApi.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Error occurred in GetCityByIdAsync for Id: {id}.");
-                throw;
+                _logger.LogError(ex, "Error occurred in GetCityByIdAsync for Id: {CityId}.", id);
+                return StatusCode(StatusCodes.Status500InternalServerError, new
+                {
+                    message = "An internal error occurred while retrieving the requested city."
+                });
             }
         }
 
@@ -135,6 +143,7 @@ namespace MyCitiesWebApi.Controllers
         {
             List<int> activePhotoKeys = await _myCitiesDataService.GetActivePhotoKeysAsync(); 
             return Ok(activePhotoKeys);
+            
         }
 
         [HttpGet("GetLocationFilterOptions")]
@@ -142,46 +151,6 @@ namespace MyCitiesWebApi.Controllers
         {
             var items = await _myCitiesDataService.GetLocationFilterOptionsAsync();
             return Ok(items);
-        }
-
-
-
-        #endregion
-
-        #region Admin
-
-        // POST api/MyCities/CreateCity
-        [HttpPost("CreateCity")]
-        public async Task<ActionResult<int>> CreateCityAsync([FromBody] MyCityDto city)
-        {
-            // With [ApiController], invalid model state returns 400 automatically.
-            var newId = await _myCitiesDataService.CreateCityAsync(city);
-            return Ok(newId);
-        }
-
-        // PUT api/MyCities/UpdateCity/5
-        [HttpPut("UpdateCity/{id:int}")]
-        public async Task<IActionResult> UpdateCityAsync(int id, [FromBody] MyCityDto city)
-        {
-            if (id != city.Id)
-                return BadRequest("Route id does not match payload id.");
-
-            var updated = await _myCitiesDataService.UpdateCityAsync(city);
-            if (!updated)
-                return NotFound();
-
-            return NoContent();
-        }
-
-        // DELETE api/MyCities/DeleteCity/5
-        [HttpDelete("DeleteCity/{id:int}")]
-        public async Task<IActionResult> DeleteCityAsync(int id)
-        {
-            var deleted = await _myCitiesDataService.DeleteCityAsync(id);
-            if (!deleted)
-                return NotFound();
-
-            return NoContent();
         }
 
         #endregion

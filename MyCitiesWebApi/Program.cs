@@ -150,9 +150,7 @@ namespace MyCitiesWebApi
             {
                 builder.Services
                     .AddOptions<SwaggerAuthenticationSettings>()
-                    .Bind(
-                        builder.Configuration.GetSection(
-                            "SwaggerAuthentication"))
+                    .Bind(builder.Configuration.GetSection("SwaggerAuthentication"))
                     .Validate(
                         settings => !string.IsNullOrWhiteSpace(settings.Username),
                         "The Swagger authentication username is missing.")
@@ -172,7 +170,8 @@ namespace MyCitiesWebApi
 
             var app = builder.Build();
 
-            // Configure the HTTP request pipeline.
+            // Configure the HTTP request pipeline. 
+            // Note: MyCities is hosted as a branch under www.travelswithcal.com
             app.UsePathBase("/mycities/dataservice");
 
             app.UseSerilogRequestLogging(options =>

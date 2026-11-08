@@ -1,16 +1,17 @@
 ﻿using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Logging.Abstractions;
 using MyCitiesWebApi.Middleware;
 using Serilog;
 using Serilog.Core;
 using Serilog.Events;
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
+using Serilog.Extensions.Logging;
 
 namespace MyCities.Tests.Middleware
 {
     public class Middleware_Tests : IDisposable
     {
-        private readonly ILogger _originalLogger;
+        private readonly Serilog.ILogger _originalLogger;
 
         public Middleware_Tests()
         {
@@ -34,7 +35,12 @@ namespace MyCities.Tests.Middleware
                 .CreateLogger();
 
             RequestDelegate next = _ => throw new InvalidOperationException("boom");
-            var middleware = new GlobalExceptionMiddleware(next, NullLogger<GlobalExceptionMiddleware>.Instance);
+            using var loggerFactory = new SerilogLoggerFactory(Log.Logger, dispose: false);
+
+            var logger =
+                loggerFactory.CreateLogger<GlobalExceptionMiddleware>();
+
+            var middleware = new GlobalExceptionMiddleware(next, logger);
 
             var context = new DefaultHttpContext();
             context.TraceIdentifier = "trace-123";
@@ -97,7 +103,11 @@ namespace MyCities.Tests.Middleware
                 .CreateLogger();
 
             RequestDelegate next = _ => throw new Exception("fail");
-            var middleware = new GlobalExceptionMiddleware(next, NullLogger<GlobalExceptionMiddleware>.Instance);
+            using var loggerFactory = new SerilogLoggerFactory(Log.Logger, dispose: false);
+
+            var logger =  loggerFactory.CreateLogger<GlobalExceptionMiddleware>();
+
+            var middleware = new GlobalExceptionMiddleware(next, logger);
 
             var context = new DefaultHttpContext();
             context.TraceIdentifier = "trace-999";

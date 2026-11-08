@@ -66,7 +66,7 @@ namespace MyCitiesDataAccess
                 throw new InvalidOperationException("ExcelFilePath is not configured.");
 
             if (!File.Exists(path))
-                throw new FileNotFoundException("MyCitiesData.xlsx not found.", path);
+                throw new FileNotFoundException("MyCitiesData-Legacy.xlsx not found.", path);
 
             var writeUtc = File.GetLastWriteTimeUtc(path);
 

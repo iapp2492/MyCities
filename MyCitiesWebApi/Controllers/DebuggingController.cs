@@ -16,18 +16,29 @@ namespace MyCitiesWebApi.Controllers
         IOptions<MyCitiesSettings> _myCitiesSettings;
         private readonly MyCitiesDbContext _db;
         private readonly ILogger<DebuggingController> _logger;
+        private readonly IWebHostEnvironment _environment;        
 
-        public DebuggingController (IOptions<MyCitiesSettings> myCitiesSettings, MyCitiesDbContext db, ILogger<DebuggingController> logger)
+        public DebuggingController (IOptions<MyCitiesSettings> myCitiesSettings, IWebHostEnvironment environment, 
+                                                        MyCitiesDbContext db, ILogger<DebuggingController> logger)
         {
             _myCitiesSettings = myCitiesSettings;
             _db = db;
             _logger = logger;
+            _environment = environment;
         }
 
         [HttpGet]
         [Route("GetEnvironmentInfo")]
         public IActionResult GetEnvironmentInfo()
         {
+            var environment = new
+            {
+                Name = _environment.EnvironmentName,
+                IsProduction = _environment.IsProduction(),
+                IsDevelopment = _environment.IsDevelopment(),
+                IsStaging = _environment.IsStaging()
+            };
+
             MyCitiesSettings? settings = _myCitiesSettings?.Value;
 
             var sqlSettings = settings?.SQLSettings;
@@ -41,8 +52,7 @@ namespace MyCitiesWebApi.Controllers
                 Database = string.IsNullOrWhiteSpace(sqlSettings?.Database)
                     ? "Unable to access MyCitiesSettings.SQLSettings.Database"
                     : sqlSettings.Database,
-                Environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
-                    ?? "Unable to access ASPNETCORE_ENVIRONMENT"
+                Environment = environment
             };
 
             return new JsonResult(result);
@@ -59,7 +69,7 @@ namespace MyCitiesWebApi.Controllers
                 OS = RuntimeInformation.OSDescription,
                 ProcessArchitecture = RuntimeInformation.ProcessArchitecture.ToString(),
                 OSArchitecture = RuntimeInformation.OSArchitecture.ToString(),
-                Environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "(null)"
+                Environment = _environment.EnvironmentName
             };
 
             return Ok(result);
@@ -141,7 +151,7 @@ namespace MyCitiesWebApi.Controllers
             using (LogContext.PushProperty("Method", "DebuggingController.SerilogTestUnhandledException"))
             using (LogContext.PushProperty("Args", new { SampleValue = 99 }, destructureObjects: true))
             {
-                throw new Exception("Artificial unhandled exception.");
+                throw new InvalidOperationException("Artificial unhandled exception.");
             }
         }
 

@@ -18,10 +18,10 @@ namespace MyCitiesWebApi.Filters
             var traceId = context.HttpContext.TraceIdentifier;
             var requestPath = context.HttpContext.Request.Path.Value;
 
-            using (LogContext.PushProperty("Controller", controller))
-            using (LogContext.PushProperty("Action", action))
-            using (LogContext.PushProperty("TraceId", traceId))
-            using (LogContext.PushProperty("RequestPath", requestPath))
+            using (LogContext.PushProperty("Controller", controller ?? "(unknown)"))
+            using (LogContext.PushProperty("Action", action ?? "(unknown)"))
+            using (LogContext.PushProperty("TraceId", traceId ?? "(unknown)"))
+            using (LogContext.PushProperty("RequestPath", requestPath ?? "(unknown)"))
             {
                 await next();
             }

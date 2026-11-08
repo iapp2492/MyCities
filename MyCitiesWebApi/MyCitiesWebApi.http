@@ -1,6 +1,7 @@
-@MyCitiesWebApi_HostAddress = http://localhost:5063
+# @MyCitiesWebApi_HostAddress = http://localhost:5063
+@MyCitiesWebApi_HostAddress = https://localhost:7127
 
-GET {{MyCitiesWebApi_HostAddress}}/weatherforecast/
+GET {{MyCitiesWebApi_HostAddress}}/api/MyCities/GetAllCities
 Accept: application/json
 
 ###
