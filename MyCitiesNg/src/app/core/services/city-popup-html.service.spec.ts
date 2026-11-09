@@ -187,7 +187,7 @@ describe('CityPopupHtmlService', () =>
 
             const html = service.build(city, false);
 
-            expect(html).toContain('<div style="font-weight: 700; margin-bottom: 6px;">');
+            expect(html).toContain('<div style="font-size: 18px; font-weight: 700; margin-bottom: 6px;">');
             expect(html).toContain('</div>');
             expect(html).toContain('<div><b>Country:</b> </div>');
             expect(html).not.toContain('Stay:');

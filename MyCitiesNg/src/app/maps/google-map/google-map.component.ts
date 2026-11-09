@@ -2,29 +2,27 @@ import { AfterViewInit, Component, DestroyRef, inject, OnDestroy } from '@angula
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { filter } from 'rxjs';
 import { GoogleMapsLoaderService } from '../../core/services/google-maps-loader.service';
-import { MyCitiesStoreService} from '../../core/services/my-cities-store.service';
-import { MyCityDto } from '../../../models/myCityDto'; 
+import { MyCitiesStoreService } from '../../core/services/my-cities-store.service';
+import { MyCityDto } from '../../../models/myCityDto';
 import { MapFiltersBarComponent, BasemapOption } from '../../shared/components/map-filters-bar/map-filters-bar.component';
-import type { BasemapMode } from '../../../models/basemapMode';
+import { GoogleBasemap, isBasemapForEngine } from '../../../models/basemapMode';
 import { environment } from '../../../environments/environment';
 import { MapHintService } from '../../core/services/map-hint.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { CityPopupHtmlService } from '../../core/services/city-popup-html.service';
-import { MatDialog } from '@angular/material/dialog';
-import { PhotoViewerDialogComponent } from '../../photo-viewer/photo-viewer-dialog.component';
+import { PhotoViewerLauncherService } from '../../photo-viewer/photo-viewer-launcher.service';
 import { CommonModule } from '@angular/common';
 import { DebugLoggerService } from '../../core/services/debug-logger.service';
 import { AnalyticsService } from '../../core/services/analytics.service';
 
-
 @Component({
-  selector: 'app-google-map',
-  standalone: true,
-  imports: [CommonModule, MapFiltersBarComponent],
-  templateUrl: './google-map.component.html',
-  styleUrl: './google-map.component.scss',
+    selector: 'app-google-map',
+    standalone: true,
+    imports: [CommonModule, MapFiltersBarComponent],
+    templateUrl: './google-map.component.html',
+    styleUrl: './google-map.component.scss',
 })
-export class GoogleMapComponent  implements AfterViewInit, OnDestroy 
+export class GoogleMapComponent implements AfterViewInit, OnDestroy
 {
     private readonly citiesStore = inject(MyCitiesStoreService);
     private readonly destroyRef = inject(DestroyRef);
@@ -32,9 +30,9 @@ export class GoogleMapComponent  implements AfterViewInit, OnDestroy
     private readonly mapHintService = inject(MapHintService);
     private readonly snackBar = inject(MatSnackBar);
     private readonly popupHtml = inject(CityPopupHtmlService);
-    private readonly dialog = inject(MatDialog);
+    private readonly photoViewerLauncher = inject(PhotoViewerLauncherService);
     private readonly debugLogger = inject(DebugLoggerService);
-    private readonly FIT_BOUNDS_MAX_ZOOM = 6;    
+    private readonly FIT_BOUNDS_MAX_ZOOM = 6;
     private readonly analytics = inject(AnalyticsService);
 
     private map?: google.maps.Map;
@@ -43,25 +41,28 @@ export class GoogleMapComponent  implements AfterViewInit, OnDestroy
     private currentPopupCity: MyCityDto | null = null;
 
     private latestCities: MyCityDto[] | null = null;
-    
+
     decades$ = this.citiesStore.decades$;
     locations$ = this.citiesStore.locations$;
     stayDurations$ = this.citiesStore.stayDurations$;
 
     basemaps: BasemapOption[] =
-    [
-        { value: 'roadmap', label: 'Roadmap' },
-        { value: 'terrain', label: 'Terrain' },
-        { value: 'satellite', label: 'Satellite' },
-        { value: 'hybrid', label: 'Hybrid' }
-    ];
+        [
+            { value: 'roadmap', label: 'Roadmap' },
+            { value: 'terrain', label: 'Terrain' },
+            { value: 'satellite', label: 'Satellite' },
+            { value: 'hybrid', label: 'Hybrid' }
+        ];
 
-    selectedBasemap: string | null = 'roadmap';
+    get selectedBasemap(): GoogleBasemap
+    {
+        return this.citiesStore.getBasemapMode('google');
+    }
     readonly selectedDecade$ = this.citiesStore.decadeFilter$;
     readonly selectedLocation$ = this.citiesStore.locationFilter$;
     readonly selectedStayDuration$ = this.citiesStore.stayDurationFilter$;
 
-    onDecadeChange(value: string | null): void 
+    onDecadeChange(value: string | null): void
     {
         this.citiesStore.setDecadeFilter(value);
     }
@@ -71,59 +72,63 @@ export class GoogleMapComponent  implements AfterViewInit, OnDestroy
         this.citiesStore.setLocationFilter(value);
     }
 
-    onStayChange(value: string | null): void 
+    onStayChange(value: string | null): void
     {
         this.citiesStore.setStayDurationFilter(value);
     }
 
-    // Unlike the other two filters, there will always be a valid basemap (never null) 
-    onBasemapChange(value: string): void 
+    // Basemap selection always has a valid engine-specific value.
+    onBasemapChange(value: string): void
     {
-        this.selectedBasemap = value;       
-        this.citiesStore.setBasemapMode(value as BasemapMode);
+        if (!isBasemapForEngine('google', value))
+        {
+            return;
+        }
 
-        if (!this.map) 
+        this.citiesStore.setBasemapMode('google', value);
+
+        if (!this.map)
         {
             return;
         }
         this.map.setMapTypeId(value as google.maps.MapTypeId);
     }
 
-    ngAfterViewInit(): void 
+    ngAfterViewInit(): void
     {
         // 1) Ensure data is loaded (cached after first call anywhere)
         this.citiesStore.ensureLoaded()
-        .pipe(takeUntilDestroyed(this.destroyRef))
-        .subscribe({
-            next: async () => 
-            {
-            await this.initMapOnce(); 
-            },
-                        error: async () => 
-            {
-            await this.initMapOnce(); 
-            } // still init; you'll just have no markers
-        });
-       
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe({
+                next: async () =>
+                {
+                    await this.initMapOnce();
+                },
+                error: async () =>
+                {
+                    await this.initMapOnce();
+                } // still init; you'll just have no markers
+            });
+
         // 2) Render markers based on filteredCities$ (filters affect map automatically)
         this.citiesStore.filteredCities$
-        .pipe(
-            this.debugLogger.debugTap<MyCityDto[] | null>('filteredCities$ emitted:'),
-            takeUntilDestroyed(this.destroyRef),
-            filter((cities): cities is MyCityDto[] => Array.isArray(cities))
-        )
-        .subscribe(cities => 
-        {
-            this.latestCities = cities; // store latest for use if map isn’t ready yet
-            if (!this.map) 
+            .pipe(
+                this.debugLogger.debugTap<MyCityDto[] | null>('filteredCities$ emitted:'),
+                takeUntilDestroyed(this.destroyRef),
+                filter((cities): cities is MyCityDto[] => Array.isArray(cities))
+            )
+            .subscribe(cities =>
             {
-                return;
-            }
-            this.renderMarkers(cities);
-        });
+                this.latestCities = cities; // store latest for use if map isn’t ready yet
+                if (!this.map)
+                {
+                    return;
+                }
+                this.renderMarkers(cities);
+            });
     }
-  
-    private async initMapOnce(): Promise<void> 
+
+    private async initMapOnce(): Promise<void>
     {
         const mapEl = document.getElementById('googleMap') as HTMLElement | null;
 
@@ -133,15 +138,27 @@ export class GoogleMapComponent  implements AfterViewInit, OnDestroy
         }
 
         const { Map } = await this.mapsLoader.importLibrary('maps') as google.maps.MapsLibrary;
+
+        if (this.destroyRef.destroyed)
+        {
+            return;
+        }
+
         await this.mapsLoader.importLibrary('marker');
 
-        this.map = new Map(mapEl, 
+        // Navigation may have destroyed the view while the libraries were loading.
+        if (this.destroyRef.destroyed || !mapEl.isConnected || this.map)
         {
-            center: { lat: 20, lng: 0 },
-            zoom: 2,
-            mapTypeId: (this.selectedBasemap ?? 'roadmap') as google.maps.MapTypeId,
-            mapId: environment.googleMapsMapId,
-        });
+            return;
+        }
+
+        this.map = new Map(mapEl,
+            {
+                center: { lat: 20, lng: 0 },
+                zoom: 2,
+                mapTypeId: this.selectedBasemap as google.maps.MapTypeId,
+                mapId: environment.googleMapsMapId,
+            });
 
         this.infoWindow = new google.maps.InfoWindow();
 
@@ -154,11 +171,11 @@ export class GoogleMapComponent  implements AfterViewInit, OnDestroy
         {
             this.showMapHintOnce();
         });
-        
-        if (this.latestCities && this.latestCities.length > 0) 
+
+        if (this.latestCities && this.latestCities.length > 0)
         {
             this.renderMarkers(this.latestCities);
-        }      
+        }
     }
 
     private attachPopupHandlers(): void
@@ -182,9 +199,9 @@ export class GoogleMapComponent  implements AfterViewInit, OnDestroy
             event.preventDefault();
             event.stopPropagation();
 
-            const photoKey = photoLink.getAttribute('data-photo-key');
+            const photoKey = Number(photoLink.getAttribute('data-photo-key'));
 
-            if (!photoKey)
+            if (!Number.isFinite(photoKey) || photoKey <= 0)
             {
                 return;
             }
@@ -192,52 +209,42 @@ export class GoogleMapComponent  implements AfterViewInit, OnDestroy
             this.openPhotoViewer(photoKey);
         });
     }
-    
-    private openPhotoViewer(photoKey: string): void
+
+    private openPhotoViewer(photoKey: number): void
     {
         this.debugLogger.log(`Opening photo dialog for photoKey: ${photoKey}`);
 
-        // Analytics: log that photos for the specified city were viewed 
+        // Analytics: log that photos for the specified city were viewed
         this.analytics.event('photo_view_opened',
-        {
-            city: this.currentPopupCity?.city,
-            country: this.currentPopupCity?.country,
-            photoKey: photoKey,
-            engine: 'google'
-        });
-
-        this.dialog.open(PhotoViewerDialogComponent,
-        {
-            data:
             {
-                photoKey
-            },
-            maxWidth: '95vw',
-            width: '1200px',
-            height: '90vh',
-            panelClass: 'photo-viewer-dialog'
-        });
+                city: this.currentPopupCity?.city,
+                country: this.currentPopupCity?.country,
+                photoKey: photoKey,
+                engine: 'google'
+            });
+
+        this.photoViewerLauncher.open(photoKey, 'google');
     }
-        
-    private renderMarkers(cities: MyCityDto[]): void 
+
+    private renderMarkers(cities: MyCityDto[]): void
     {
         this.debugLogger.log('Rendering markers for cities in the renderMarkers method:', cities);
-        if (!this.map) 
+        if (!this.map)
         {
             return;
         }
 
         this.clearMarkers();
-        if (cities.length === 0) 
+        if (cities.length === 0)
         {
             return;
         }
 
         const bounds = new google.maps.LatLngBounds();
 
-        for (const city of cities) 
+        for (const city of cities)
         {
-            if (city.lon == null || city.lat == null) 
+            if (city.lon == null || city.lat == null)
             {
                 continue;
             }
@@ -245,11 +252,11 @@ export class GoogleMapComponent  implements AfterViewInit, OnDestroy
             const content = this.createMarkerElement();
 
             const marker = new google.maps.marker.AdvancedMarkerElement(
-            {
-                map: this.map,
-                position: { lat: city.lat, lng: city.lon },
-                content,
-            });
+                {
+                    map: this.map,
+                    position: { lat: city.lat, lng: city.lon },
+                    content,
+                });
 
             marker.addListener('click', () =>
             {
@@ -259,20 +266,20 @@ export class GoogleMapComponent  implements AfterViewInit, OnDestroy
                 this.infoWindow?.setContent(html);
                 this.infoWindow?.open({ map: this.map!, anchor: marker });
 
-                // Analytics: log which city was clicked 
+                // Analytics: log which city was clicked
                 this.analytics.event('city_popup_opened',
-                {
-                    city: city.city,
-                    country: city.country,
-                    photoKey: city.photoKey,
-                    engine: 'google'
-                });
+                    {
+                        city: city.city,
+                        country: city.country,
+                        photoKey: city.photoKey,
+                        engine: 'google'
+                    });
             });
 
             this.debugLogger.log(`Placing marker for ${city.city} at (${city.lat}, ${city.lon})`);
 
             this.markers.push(marker);
-                bounds.extend({ lat: city.lat, lng: city.lon });
+            bounds.extend({ lat: city.lat, lng: city.lon });
         }
 
         this.map.fitBounds(bounds, 50); // 50px padding
@@ -292,16 +299,16 @@ export class GoogleMapComponent  implements AfterViewInit, OnDestroy
         });
     }
 
-    private clearMarkers(): void 
+    private clearMarkers(): void
     {
-        for (const m of this.markers) 
+        for (const m of this.markers)
         {
             m.map = null;
         }
         this.markers = [];
     }
 
-    private createMarkerElement(): HTMLElement 
+    private createMarkerElement(): HTMLElement
     {
         const el = document.createElement('div');
         el.className = 'mycity-marker';
@@ -324,23 +331,23 @@ export class GoogleMapComponent  implements AfterViewInit, OnDestroy
     private showMapHintOnce(): void
     {
         this.mapHintService.showOnceIfNeeded('google',
-        {
-            showHint: (message: string): void =>
             {
-                this.snackBar.open(message, 'Got it',
+                showHint: (message: string): void =>
                 {
-                    duration: 8000,
-                    horizontalPosition: 'center',
-                    verticalPosition: 'top',
-                    panelClass: ['mycities-toast']
-                });
-            }
-        });
+                    this.snackBar.open(message, 'Got it',
+                        {
+                            duration: 8000,
+                            horizontalPosition: 'center',
+                            verticalPosition: 'top',
+                            panelClass: ['mycities-toast']
+                        });
+                }
+            });
     }
 
-    ngOnDestroy(): void 
+    ngOnDestroy(): void
     {
         this.clearMarkers();
-        this.map  = undefined;
+        this.map = undefined;
     }
 }

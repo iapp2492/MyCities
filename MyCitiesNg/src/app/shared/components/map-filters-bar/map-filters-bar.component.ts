@@ -8,21 +8,22 @@ import { FormsModule } from '@angular/forms';
 import { LocationFilterOption } from '../../../../models/LocationFilterOption';
 import { AnalyticsService } from '../../../core/services/analytics.service';
 
-export interface BasemapOption {
-  value: string;
-  label: string;
+export interface BasemapOption
+{
+    value: string;
+    label: string;
 }
 
 type MapEngine = 'leaflet' | 'mapbox' | 'google';
 
 @Component({
-  selector: 'app-map-filters-bar',
-  standalone: true,
-  imports: [CommonModule, FormsModule, MatButtonToggleModule],
-  templateUrl: './map-filters-bar.component.html',
-  styleUrl: './map-filters-bar.component.scss',
+    selector: 'app-map-filters-bar',
+    standalone: true,
+    imports: [CommonModule, FormsModule, MatButtonToggleModule],
+    templateUrl: './map-filters-bar.component.html',
+    styleUrl: './map-filters-bar.component.scss',
 })
-export class MapFiltersBarComponent 
+export class MapFiltersBarComponent
 {
     // Data sources
     @Input({ required: true }) decades$!: Observable<string[]>;
@@ -64,12 +65,12 @@ export class MapFiltersBarComponent
 
         // Initialize immediately (first render)
         this.currentEngine = this.getEngineFromUrl(this.router.url);
-    } 
-    
-    onBasemapSelectChange(target: EventTarget | null): void 
+    }
+
+    onBasemapSelectChange(target: EventTarget | null): void
     {
         const select = target as HTMLSelectElement | null;
-        if (!select) 
+        if (!select)
         {
             return;
         }
@@ -77,14 +78,13 @@ export class MapFiltersBarComponent
         const value = select.value;
 
         this.analytics.event('basemap_changed',
-        {
-            engine: this.currentEngine,
-            basemap: value
-        });
+            {
+                engine: this.currentEngine,
+                basemap: value
+            });
 
         this.basemapChange.emit(value);
     }
-
 
     private getEngineFromUrl(url: string): MapEngine
     {
@@ -100,9 +100,9 @@ export class MapFiltersBarComponent
         this.currentEngine = engine;
 
         this.analytics.event('map_engine_selected',
-        {
-            engine: engine
-        });
+            {
+                engine: engine
+            });
 
         this.router.navigate(['/map', engine], { queryParamsHandling: 'merge' });
     }

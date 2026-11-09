@@ -1,7 +1,5 @@
-import { CommonModule } from '@angular/common';
-import { Component, CUSTOM_ELEMENTS_SCHEMA, inject, OnInit} from '@angular/core';
-import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
-import { MatButtonModule } from '@angular/material/button';
+import { Component, inject, OnInit } from '@angular/core';
+import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 
 import { PhotoViewerComponent } from './photo-viewer.component';
 import { DebugLoggerService } from '../core/services/debug-logger.service';
@@ -14,8 +12,8 @@ export interface PhotoViewerDialogData
 @Component({
     selector: 'app-photo-viewer-dialog',
     standalone: true,
-    imports: [CommonModule, MatDialogModule, MatButtonModule, PhotoViewerComponent],
-   template: `
+    imports: [PhotoViewerComponent],
+    template: `
     <div class="dialog-root">
         <div class="topbar">
 
@@ -35,7 +33,6 @@ export interface PhotoViewerDialogData
             <app-photo-viewer
                 [photoKey]="data.photoKey"
                 [isDialog]="true"
-                (captionChanged)="onCaptionChanged($event)"
             />
         </div>
     </div>
@@ -56,23 +53,10 @@ export interface PhotoViewerDialogData
             display: flex;
             align-items: center;
             gap: 12px;
-            padding: 4px 8px;   
+            padding: 4px 8px;
             background:  #000;
             color: #fff;
             border-bottom: none;
-        }
-
-        .caption
-        {
-            min-width: 0;
-            font-size: 14px;
-            line-height: 1.35;
-
-            /* clamp to 2 lines */
-            display: -webkit-box;
-            -webkit-box-orient: vertical;
-            -webkit-line-clamp: 2;
-            overflow: hidden;
         }
 
         .spacer
@@ -119,22 +103,13 @@ export interface PhotoViewerDialogData
         }
 
     `],
-    schemas: [CUSTOM_ELEMENTS_SCHEMA]
 })
 export class PhotoViewerDialogComponent implements OnInit
 {
     private readonly dialogRef = inject(MatDialogRef<PhotoViewerDialogComponent>);
-    public readonly  data = inject(MAT_DIALOG_DATA) as PhotoViewerDialogData; 
+    public readonly data = inject(MAT_DIALOG_DATA) as PhotoViewerDialogData;
     private readonly debugLogger = inject(DebugLoggerService);
 
-
-    public captionText = '';
-
-    public onCaptionChanged(caption: string): void
-    {
-        this.captionText = caption ?? '';
-    }
-    
     ngOnInit(): void
     {
         this.debugLogger.log('Dialog data:', this.data);

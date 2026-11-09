@@ -4,14 +4,12 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MyCitiesStoreService } from '../../core/services/my-cities-store.service';
 import { MyCityDto } from '../../../models/myCityDto';
 import { CommonModule } from '@angular/common';
-import type { BasemapMode } from '../../../models/basemapMode';
+import { LeafletBasemap, isBasemapForEngine } from '../../../models/basemapMode';
 import { MapFiltersBarComponent, BasemapOption } from '../../shared/components/map-filters-bar/map-filters-bar.component';
 import { MapHintService } from '../../core/services/map-hint.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { CityPopupHtmlService } from '../../core/services/city-popup-html.service';
-import { Router } from '@angular/router';
-import { MatDialog } from '@angular/material/dialog';
-import { PhotoViewerDialogComponent } from '../../photo-viewer/photo-viewer-dialog.component';
+import { PhotoViewerLauncherService } from '../../photo-viewer/photo-viewer-launcher.service';
 import { DebugLoggerService } from '../../core/services/debug-logger.service';
 import { AnalyticsService } from '../../core/services/analytics.service';
 
@@ -22,15 +20,14 @@ import { AnalyticsService } from '../../core/services/analytics.service';
     templateUrl: './leaflet-map.component.html',
     styleUrl: './leaflet-map.component.scss',
 })
-export class LeafletMapComponent implements AfterViewInit, OnDestroy 
+export class LeafletMapComponent implements AfterViewInit, OnDestroy
 {
     private readonly mapHintService = inject(MapHintService);
     private citiesStore = inject(MyCitiesStoreService);
     private readonly snackBar = inject(MatSnackBar);
     private readonly popupHtml = inject(CityPopupHtmlService);
-    private readonly router = inject(Router);
-    private readonly dialog = inject(MatDialog);
-    private readonly debugLogger = inject(DebugLoggerService);    
+    private readonly photoViewerLauncher = inject(PhotoViewerLauncherService);
+    private readonly debugLogger = inject(DebugLoggerService);
     private readonly analytics = inject(AnalyticsService);
 
     private map?: L.Map;
@@ -59,32 +56,40 @@ export class LeafletMapComponent implements AfterViewInit, OnDestroy
             { value: 'esriworldimagery', label: 'Esri World Imagery' },
         ];
 
-    selectedBasemap: string | null = 'standard';
+    get selectedBasemap(): LeafletBasemap
+    {
+        return this.citiesStore.getBasemapMode('leaflet');
+    }
 
-    onDecadeChange(value: string | null): void 
-    {  
+    onDecadeChange(value: string | null): void
+    {
         this.citiesStore.setDecadeFilter(value);
     }
-    
+
     onLocationChange(value: string | null): void
     {
         this.citiesStore.setLocationFilter(value);
     }
 
-    onStayChange(value: string | null): void 
+    onStayChange(value: string | null): void
     {
         this.citiesStore.setStayDurationFilter(value);
     }
 
-    // Unlike the other two filters, there will always be a valid basemap (never null) 
-    onBasemapChange(value: string): void 
+    // Basemap selection always has a valid engine-specific value.
+    onBasemapChange(value: string): void
     {
-        this.selectedBasemap = value;
-        this.citiesStore.setBasemapMode(value as BasemapMode);
+        if (!isBasemapForEngine('leaflet', value))
+        {
+            return;
+        }
+
+        this.citiesStore.setBasemapMode('leaflet', value);
+        this.applyBasemap(value);
     }
 
     // Helper to escape HTML in city names for safe popup content
-    private escapeHtml(value: unknown): string 
+    private escapeHtml(value: unknown): string
     {
         const s = String(value ?? '');
         return s
@@ -95,7 +100,7 @@ export class LeafletMapComponent implements AfterViewInit, OnDestroy
             .replaceAll("'", '&#039;');
     }
 
-    ngAfterViewInit(): void 
+    ngAfterViewInit(): void
     {
         // Fix default marker icons in Angular builds
         delete (L.Icon.Default.prototype as { _getIconUrl?: unknown })._getIconUrl;
@@ -121,32 +126,32 @@ export class LeafletMapComponent implements AfterViewInit, OnDestroy
 
         this.map.on('zoomend', () => this.updateTooltipVisibility());
 
-        this.applyBasemap('standard'); // default to light mode
+        this.applyBasemap(this.selectedBasemap);
 
         this.markerLayer.addTo(this.map);
         this.wireData();
-        
+
         this.map.whenReady(() =>
         {
             this.mapHintService.showOnceIfNeeded('leaflet',
-            {
-                showHint: (message: string): void =>
                 {
-                    this.snackBar.open(message, 'Got it',
+                    showHint: (message: string): void =>
                     {
-                        duration: 8000,
-                        horizontalPosition: 'center',
-                        verticalPosition: 'top',
-                        panelClass: ['mycities-toast']
-                    });
-                }
-            });
+                        this.snackBar.open(message, 'Got it',
+                            {
+                                duration: 8000,
+                                horizontalPosition: 'center',
+                                verticalPosition: 'top',
+                                panelClass: ['mycities-toast']
+                            });
+                    }
+                });
         });
     }
 
-    private renderMarkers(cities: MyCityDto[]): void 
+    private renderMarkers(cities: MyCityDto[]): void
     {
-        if (!this.map) 
+        if (!this.map)
         {
             return;
         }
@@ -154,7 +159,7 @@ export class LeafletMapComponent implements AfterViewInit, OnDestroy
         this.markerLayer.clearLayers();
         this.markersWithTooltips = [];
 
-        if (cities.length === 0) 
+        if (cities.length === 0)
         {
             return;
         }
@@ -162,8 +167,8 @@ export class LeafletMapComponent implements AfterViewInit, OnDestroy
         const bounds = L.latLngBounds([]);
 
         let skipped = 0;
-        for (const city of cities) 
-        { 
+        for (const city of cities)
+        {
             const lat = Number(city.lat);
             const lon = Number(city.lon);
 
@@ -174,7 +179,7 @@ export class LeafletMapComponent implements AfterViewInit, OnDestroy
                 skipped++;
                 continue;
             }
-            
+
             const hasPhotos = this.citiesStore.hasPhotos(city.photoKey);
             this.debugLogger.log(`City "${city.city}" hasPhotos=${hasPhotos}`); // Debug log to verify photo availability
             const popupHtml = this.popupHtml.build(city, hasPhotos);
@@ -194,12 +199,12 @@ export class LeafletMapComponent implements AfterViewInit, OnDestroy
             marker.on('popupopen', (e: L.PopupEvent) =>
             {
                 this.analytics.event('city_popup_opened',
-                {
-                    city: city.city,
-                    country: city.country,
-                    photoKey: city.photoKey,
-                    engine: 'leaflet'
-                });
+                    {
+                        city: city.city,
+                        country: city.country,
+                        photoKey: city.photoKey,
+                        engine: 'leaflet'
+                    });
                 // popup element (root DOM node of the popup content)
                 const popupEl = e.popup.getElement();
                 if (!popupEl)
@@ -231,29 +236,14 @@ export class LeafletMapComponent implements AfterViewInit, OnDestroy
                     this.debugLogger.log('Opening photo dialog for key', photoKey);
 
                     this.analytics.event('photo_view_opened',
-                    {
-                        city: city.city,
-                        country: city.country,
-                        photoKey: photoKey,
-                        engine: 'leaflet'
-                    });
-                    
-                    this.dialog.open(PhotoViewerDialogComponent,
-                    {
-                        data: { photoKey },
-                        autoFocus: false,
-                        restoreFocus: false,
-                        closeOnNavigation: true,
-                        hasBackdrop: true,
+                        {
+                            city: city.city,
+                            country: city.country,
+                            photoKey: photoKey,
+                            engine: 'leaflet'
+                        });
 
-                        // Try this first; easy to adjust
-                        width: 'min(1100px, 92vw)',
-                        height: 'min(780px, 88vh)',
-                        maxWidth: '92vw',
-                        maxHeight: '88vh',
-
-                        panelClass: 'photo-viewer-dialog'
-                    });
+                    this.photoViewerLauncher.open(photoKey);
                 };
 
             });
@@ -267,11 +257,11 @@ export class LeafletMapComponent implements AfterViewInit, OnDestroy
                     className: 'city-tooltip'
                 })
                 .bindPopup(popupHtml,
-                {
-                    maxWidth: 340,
-                    minWidth: 300,
-                    className: 'mycities-popup'
-                });
+                    {
+                        maxWidth: 340,
+                        minWidth: 300,
+                        className: 'mycities-popup'
+                    });
 
             marker.addTo(this.markerLayer);
 
@@ -284,29 +274,29 @@ export class LeafletMapComponent implements AfterViewInit, OnDestroy
         }
 
         this.map.fitBounds(bounds,
-        {
-            padding: [50, 50],
-            maxZoom: this.FIT_BOUNDS_MAX_ZOOM
-        });
+            {
+                padding: [50, 50],
+                maxZoom: this.FIT_BOUNDS_MAX_ZOOM
+            });
         this.updateTooltipVisibility();
     }
 
     // Load and cache our cities data, and redraw on any filter changes
-    private wireData(): void 
+    private wireData(): void
     {
         // Ensure load kicks off (and cached thereafter)
         this.citiesStore.ensureLoaded()
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe({ error: err => this.debugLogger.error('Failed to load cities', err) });
-       
+
         // Reactively redraw whenever filters change
         this.citiesStore.filteredCities$
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe(
                 {
-                    next: cities => 
+                    next: cities =>
                     {
-                        if (!this.map) 
+                        if (!this.map)
                         {
                             return;
                         }
@@ -314,26 +304,22 @@ export class LeafletMapComponent implements AfterViewInit, OnDestroy
                     }
                 });
 
-        this.citiesStore.basemapMode$
-            .pipe(takeUntilDestroyed(this.destroyRef))
-            .subscribe(mode => this.applyBasemap(mode));
-
     }
 
-    private applyBasemap(mode: 'standard' | 'humanitarian' | 'opentopo' | 'esristreet' | 'esriworldimagery'): void 
+    private applyBasemap(mode: LeafletBasemap): void
     {
-        if (!this.map) 
+        if (!this.map)
         {
             return;
         }
 
         // Remove the previous tile layer (if any)
-        if (this.tileLayer) 
+        if (this.tileLayer)
         {
             this.tileLayer.removeFrom(this.map);
         }
 
-        if (mode === 'humanitarian') 
+        if (mode === 'humanitarian')
         {
             this.tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',
                 {
@@ -341,7 +327,7 @@ export class LeafletMapComponent implements AfterViewInit, OnDestroy
                     attribution: '&copy; OpenStreetMap contributors, HOT'
                 });
         }
-        else if (mode === 'opentopo') 
+        else if (mode === 'opentopo')
         {
             this.tileLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
                 {
@@ -349,7 +335,7 @@ export class LeafletMapComponent implements AfterViewInit, OnDestroy
                     attribution: '&copy; OpenStreetMap contributors, OpenTopoMap'
                 });
         }
-        else if (mode === 'esristreet') 
+        else if (mode === 'esristreet')
         {
             this.tileLayer = L.tileLayer(
                 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
@@ -358,7 +344,7 @@ export class LeafletMapComponent implements AfterViewInit, OnDestroy
                     attribution: 'Tiles &copy; Esri'
                 });
         }
-        else if (mode === 'esriworldimagery') 
+        else if (mode === 'esriworldimagery')
         {
             this.tileLayer = L.tileLayer(
                 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
@@ -367,7 +353,7 @@ export class LeafletMapComponent implements AfterViewInit, OnDestroy
                     attribution: 'Tiles &copy; Esri'
                 });
         }
-        else 
+        else
         {
             // OpenStreetMap standard
             this.tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -380,29 +366,29 @@ export class LeafletMapComponent implements AfterViewInit, OnDestroy
         this.tileLayer.addTo(this.map);
     }
 
-    private updateTooltipVisibility(): void 
-        {
-        if (!this.map) 
+    private updateTooltipVisibility(): void
+    {
+        if (!this.map)
         {
             return;
         }
 
         const show = this.map.getZoom() >= this.TOOLTIP_MIN_ZOOM;
-        for (const m of this.markersWithTooltips) 
-            {
-            if (show) 
+        for (const m of this.markersWithTooltips)
+        {
+            if (show)
             {
                 m.openTooltip();
             }
-            else 
+            else
             {
                 m.closeTooltip();
             }
         };
 
     };
-  
-    ngOnDestroy(): void 
+
+    ngOnDestroy(): void
     {
         // Stop future work (extra defensive; takeUntilDestroyed already handles streams)
         this.markerLayer?.clearLayers();

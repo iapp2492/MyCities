@@ -50,6 +50,37 @@ describe('MapFiltersBarComponent', () =>
         fixture.detectChanges();
     });
 
+    for (const saved of [
+        { value: 'humanitarian', label: 'Humanitarian', defaultValue: 'standard' },
+        { value: 'navNight', label: 'Navigation Night', defaultValue: 'standard' },
+        { value: 'hybrid', label: 'Hybrid', defaultValue: 'roadmap' }
+    ])
+    {
+        it('renders the saved basemap on first render: ' + saved.value, async () =>
+        {
+            const returningFixture = TestBed.createComponent(MapFiltersBarComponent);
+            returningFixture.componentRef.setInput('decades$', of([]));
+            returningFixture.componentRef.setInput('locations$', of([]));
+            returningFixture.componentRef.setInput('stayDurations$', of([]));
+            returningFixture.componentRef.setInput('basemaps', [
+                { value: saved.defaultValue, label: 'Default' },
+                { value: saved.value, label: saved.label }
+            ]);
+            returningFixture.componentRef.setInput('selectedBasemap', saved.value);
+            const emitSpy = spyOn(returningFixture.componentInstance.basemapChange, 'emit');
+
+            returningFixture.detectChanges();
+            await returningFixture.whenStable();
+            returningFixture.detectChanges();
+
+            const select: HTMLSelectElement = returningFixture.nativeElement.querySelector('select');
+            expect(select.value).toBe(saved.value);
+            expect(select.selectedOptions[0]?.textContent).toContain(saved.label);
+            expect(emitSpy).not.toHaveBeenCalled();
+            returningFixture.destroy();
+        });
+    }
+
     it('should create', () =>
     {
         expect(component).toBeTruthy();
@@ -61,6 +92,17 @@ describe('MapFiltersBarComponent', () =>
 
         const select = createSelect('satellite');
         component.onBasemapSelectChange(select);
+
+        expect(emitSpy).toHaveBeenCalledOnceWith('satellite');
+    });
+
+    it('emits the basemap value from a real dropdown change', async () =>
+    {
+        await fixture.whenStable();
+        const emitSpy = spyOn(component.basemapChange, 'emit');
+        const select: HTMLSelectElement = fixture.nativeElement.querySelector('select');
+        select.value = 'satellite';
+        select.dispatchEvent(new Event('change'));
 
         expect(emitSpy).toHaveBeenCalledOnceWith('satellite');
     });

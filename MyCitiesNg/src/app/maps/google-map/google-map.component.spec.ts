@@ -1,14 +1,14 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { BehaviorSubject, Observable, of, throwError, filter  } from 'rxjs';
+import { BehaviorSubject, Observable, of, throwError, filter } from 'rxjs';
 import { GoogleMapComponent } from './google-map.component';
 import { GoogleMapsLoaderService } from '../../core/services/google-maps-loader.service';
 import { MyCitiesStoreService } from '../../core/services/my-cities-store.service';
 import type { MyCityDto } from '../../../models/myCityDto';
-import type { BasemapMode } from '../../../models/basemapMode';
+import { BasemapSelections, DEFAULT_BASEMAPS } from '../../../models/basemapMode';
 import { MapHintPresenter, MapHintService } from '../../core/services/map-hint.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
-import { MatDialog } from '@angular/material/dialog';
+import { PhotoViewerLauncherService } from '../../photo-viewer/photo-viewer-launcher.service';
 import { DebugLoggerService } from '../../core/services/debug-logger.service';
 
 class MockAdvancedMarkerElement
@@ -58,7 +58,18 @@ class TestCitiesStoreMock
 
     public setDecadeFilter = jasmine.createSpy('setDecadeFilter');
     public setStayDurationFilter = jasmine.createSpy('setStayDurationFilter');
-    public setBasemapMode = jasmine.createSpy('setBasemapMode');
+    private selections: BasemapSelections = { ...DEFAULT_BASEMAPS };
+    getBasemapMode<E extends keyof BasemapSelections>(engine: E): BasemapSelections[E]
+    {
+        return this.selections[engine];
+    }
+    setBasemapMode = jasmine.createSpy('setBasemapMode').and.callFake(
+        <E extends keyof BasemapSelections>(engine: E, mode: BasemapSelections[E]) =>
+        {
+            this.selections = { ...this.selections, [engine]: mode };
+
+        }
+    );
     public hasPhotos = jasmine.createSpy('hasPhotos').and.returnValue(false);
     public setLocationFilter = jasmine.createSpy('setLocationFilter');
 
@@ -72,8 +83,6 @@ class TestCitiesStoreMock
         this.filteredCitiesSubject.next(value);
     }
 }
-
-
 
 const activatedRouteMock =
 {
@@ -170,7 +179,7 @@ function installGoogleMapsMocks(): GoogleMocks
         .and.callFake((_instance: unknown, eventName: string, handler: () => void) =>
         {
             void _instance;
-            void eventName; 
+            void eventName;
             void handler;
 
             if (eventName === 'idle')
@@ -185,25 +194,24 @@ function installGoogleMapsMocks(): GoogleMocks
     const setZoomSpy = jasmine.createSpy('setZoom');
 
     const mapInstance =
-    {
-        fitBounds: fitBoundsSpy,
-        setMapTypeId: setMapTypeIdSpy,
-        getZoom: getZoomSpy,
-        setZoom: setZoomSpy
-    } as unknown as google.maps.Map;
+        {
+            fitBounds: fitBoundsSpy,
+            setMapTypeId: setMapTypeIdSpy,
+            getZoom: getZoomSpy,
+            setZoom: setZoomSpy
+        } as unknown as google.maps.Map;
 
     const infoWindowInstance =
-    {
-        setContent: jasmine.createSpy('setContent'),
-        open: jasmine.createSpy('open'),
-        addListener: jasmine.createSpy('addListener')
-    } as unknown as google.maps.InfoWindow;
+        {
+            setContent: jasmine.createSpy('setContent'),
+            open: jasmine.createSpy('open'),
+            addListener: jasmine.createSpy('addListener')
+        } as unknown as google.maps.InfoWindow;
 
     const boundsInstance =
-    {
-        extend: jasmine.createSpy('extend'),
-    } as unknown as google.maps.LatLngBounds;
-
+        {
+            extend: jasmine.createSpy('extend'),
+        } as unknown as google.maps.LatLngBounds;
 
     const globalRecord = globalThis as unknown as Record<string, unknown>;
 
@@ -279,7 +287,6 @@ describe('GoogleMapComponent', () =>
     let mapsLoader: GoogleMapsLoaderMock;
     let host: HTMLDivElement;
     let citiesStoreMock: TestCitiesStoreMock;
-    // let idleHandler: Function | null = null;
 
     beforeEach(async () =>
     {
@@ -291,30 +298,21 @@ describe('GoogleMapComponent', () =>
 
         g = installGoogleMapsMocks();
         g.reset();
-        // (g.maps.event.addListenerOnce as jasmine.Spy).and.callFake(
-        //     (map: any, event: string, handler: Function) =>
-        //     {
-        //         if (event === 'idle')
-        //         {
-        //             idleHandler = handler;
-        //         }
-        //     });
-
 
         store = new TestCitiesStoreMock();
 
         await TestBed.configureTestingModule(
-        {
-            imports: [GoogleMapComponent],
-            providers: [
-                provideRouter([]),
-                { provide: ActivatedRoute, useValue: activatedRouteMock },
-                { provide: MyCitiesStoreService, useValue: store },
-                { provide: GoogleMapsLoaderService, useClass: GoogleMapsLoaderMock },
-                { provide: MapHintService, useClass: MapHintServiceMock },
-                { provide: MatSnackBar, useClass: MatSnackBarMock },
-            ]
-        }).compileComponents();
+            {
+                imports: [GoogleMapComponent],
+                providers: [
+                    provideRouter([]),
+                    { provide: ActivatedRoute, useValue: activatedRouteMock },
+                    { provide: MyCitiesStoreService, useValue: store },
+                    { provide: GoogleMapsLoaderService, useClass: GoogleMapsLoaderMock },
+                    { provide: MapHintService, useClass: MapHintServiceMock },
+                    { provide: MatSnackBar, useClass: MatSnackBarMock },
+                ]
+            }).compileComponents();
 
         mapsLoader = TestBed.inject(GoogleMapsLoaderService) as unknown as GoogleMapsLoaderMock;
         citiesStoreMock = TestBed.inject(MyCitiesStoreService) as unknown as TestCitiesStoreMock;
@@ -367,13 +365,73 @@ describe('GoogleMapComponent', () =>
         expect(map).toBeDefined();
     });
 
+    it('initMapOnce should stop if destroyed while the maps library loads', async () =>
+    {
+        let resolveMaps!: (library: { Map: typeof google.maps.Map }) => void;
+        const mapsPromise = new Promise<{ Map: typeof google.maps.Map }>(resolve =>
+        {
+            resolveMaps = resolve;
+        });
+        mapsLoader.importLibrary.and.returnValue(mapsPromise);
+
+        const initialization = (component as unknown as { initMapOnce(): Promise<void> }).initMapOnce();
+        fixture.destroy();
+        resolveMaps({ Map: google.maps.Map });
+        await initialization;
+
+        expect(mapsLoader.importLibrary).not.toHaveBeenCalledWith('marker');
+        expect(g.getMapCtorOptions()).toBeNull();
+    });
+
+    it('initMapOnce should not create a map if destroyed while the marker library loads', async () =>
+    {
+        let resolveMarker!: (library: object) => void;
+        const markerPromise = new Promise<object>(resolve =>
+        {
+            resolveMarker = resolve;
+        });
+        mapsLoader.importLibrary.and.callFake((lib: string) =>
+            lib === 'maps' ? Promise.resolve({ Map: google.maps.Map }) : markerPromise
+        );
+
+        const initialization = (component as unknown as { initMapOnce(): Promise<void> }).initMapOnce();
+        await Promise.resolve();
+        expect(mapsLoader.importLibrary).toHaveBeenCalledWith('marker');
+
+        fixture.destroy();
+        resolveMarker({});
+        await initialization;
+
+        expect(g.getMapCtorOptions()).toBeNull();
+    });
+
+    it('initMapOnce should not create a map if its element is detached while loading', async () =>
+    {
+        let resolveMarker!: (library: object) => void;
+        const markerPromise = new Promise<object>(resolve =>
+        {
+            resolveMarker = resolve;
+        });
+        mapsLoader.importLibrary.and.callFake((lib: string) =>
+            lib === 'maps' ? Promise.resolve({ Map: google.maps.Map }) : markerPromise
+        );
+
+        const initialization = (component as unknown as { initMapOnce(): Promise<void> }).initMapOnce();
+        await Promise.resolve();
+        host.remove();
+        resolveMarker({});
+        await initialization;
+
+        expect(g.getMapCtorOptions()).toBeNull();
+    });
+
     it('onBasemapChange should call store + setMapTypeId when map exists', async () =>
     {
         await (component as unknown as { initMapOnce(): Promise<void> }).initMapOnce();
 
         component.onBasemapChange('satellite');
 
-        expect(store.setBasemapMode).toHaveBeenCalledWith('satellite' as BasemapMode);
+        expect(store.setBasemapMode).toHaveBeenCalledWith('google', 'satellite');
         expect(g.setMapTypeIdSpy).toHaveBeenCalledWith('satellite' as unknown as google.maps.MapTypeId);
     });
 
@@ -381,7 +439,7 @@ describe('GoogleMapComponent', () =>
     {
         component.onBasemapChange('terrain');
 
-        expect(store.setBasemapMode).toHaveBeenCalledWith('terrain' as BasemapMode);
+        expect(store.setBasemapMode).toHaveBeenCalledWith('google', 'terrain');
         expect(g.setMapTypeIdSpy).not.toHaveBeenCalled();
     });
 
@@ -390,12 +448,12 @@ describe('GoogleMapComponent', () =>
         await (component as unknown as { initMapOnce(): Promise<void> }).initMapOnce();
 
         const cities: MyCityDto[] =
-        [
-            createCity({ id: 1, city: 'A', country: 'X', lat: 10, lon: 20 }),
-            createCity({ id: 2, city: 'B', country: 'Y', lat: undefined, lon: 30 }),
-            createCity({ id: 3, city: 'C', country: 'Z', lat: 40, lon: undefined }),
-            createCity({ id: 4, city: 'D', country: 'W', lat: -5, lon: 100 }),
-        ];
+            [
+                createCity({ id: 1, city: 'A', country: 'X', lat: 10, lon: 20 }),
+                createCity({ id: 2, city: 'B', country: 'Y', lat: undefined, lon: 30 }),
+                createCity({ id: 3, city: 'C', country: 'Z', lat: 40, lon: undefined }),
+                createCity({ id: 4, city: 'D', country: 'W', lat: -5, lon: 100 }),
+            ];
 
         (component as unknown as { renderMarkers(c: MyCityDto[]): void }).renderMarkers(cities);
 
@@ -430,21 +488,20 @@ describe('GoogleMapComponent', () =>
         };
     }
 
-
     it('renderMarkers should clear previous markers by setting m.map = null', async () =>
     {
         await (component as unknown as { initMapOnce(): Promise<void> }).initMapOnce();
 
         const cities1: MyCityDto[] =
-        [
-            { city: 'A', country: 'X', lat: 1, lon: 2 } as MyCityDto,
-            { city: 'B', country: 'X', lat: 3, lon: 4 } as MyCityDto,
-        ];
+            [
+                { city: 'A', country: 'X', lat: 1, lon: 2 } as MyCityDto,
+                { city: 'B', country: 'X', lat: 3, lon: 4 } as MyCityDto,
+            ];
 
         const cities2: MyCityDto[] =
-        [
-            { city: 'C', country: 'X', lat: 5, lon: 6 } as MyCityDto,
-        ];
+            [
+                { city: 'C', country: 'X', lat: 5, lon: 6 } as MyCityDto,
+            ];
 
         (component as unknown as { renderMarkers(c: MyCityDto[]): void }).renderMarkers(cities1);
 
@@ -463,9 +520,9 @@ describe('GoogleMapComponent', () =>
         await (component as unknown as { initMapOnce(): Promise<void> }).initMapOnce();
 
         const cities: MyCityDto[] =
-        [
-            { city: 'Paris', country: 'France', lat: 48.8566, lon: 2.3522, stayDuration: '1 week', decades: '2010s' } as MyCityDto,
-        ];
+            [
+                { city: 'Paris', country: 'France', lat: 48.8566, lon: 2.3522, stayDuration: '1 week', decades: '2010s' } as MyCityDto,
+            ];
 
         (component as unknown as { renderMarkers(c: MyCityDto[]): void }).renderMarkers(cities);
 
@@ -490,9 +547,9 @@ describe('GoogleMapComponent', () =>
         await Promise.resolve();
 
         const cities: MyCityDto[] =
-        [
-            { city: 'A', country: 'X', lat: 10, lon: 20 } as MyCityDto,
-        ];
+            [
+                { city: 'A', country: 'X', lat: 10, lon: 20 } as MyCityDto,
+            ];
 
         store.emitFilteredCities(cities);
 
@@ -508,9 +565,9 @@ describe('GoogleMapComponent', () =>
         await (component as unknown as { initMapOnce(): Promise<void> }).initMapOnce();
 
         const cities: MyCityDto[] =
-        [
-            { city: 'A', country: 'X', lat: 10, lon: 20 } as MyCityDto,
-        ];
+            [
+                { city: 'A', country: 'X', lat: 10, lon: 20 } as MyCityDto,
+            ];
 
         (component as unknown as { renderMarkers(c: MyCityDto[]): void }).renderMarkers(cities);
         expect(g.createdMarkers.length).toBe(1);
@@ -537,23 +594,23 @@ describe('GoogleMapComponent', () =>
         expect(store.setStayDurationFilter).toHaveBeenCalledWith(null);
     });
 
-   it('ngAfterViewInit should store latestCities but not render markers when map is not ready yet', async () =>
+    it('ngAfterViewInit should store latestCities but not render markers when map is not ready yet', async () =>
     {
         const manualStore = new TestCitiesStoreManualLoadMock();
 
         await TestBed.resetTestingModule();
 
         await TestBed.configureTestingModule(
-        {
-            imports: [GoogleMapComponent],
-            providers:
-            [
-                provideRouter([]),
-                { provide: ActivatedRoute, useValue: activatedRouteMock },
-                { provide: MyCitiesStoreService, useValue: manualStore },
-                { provide: GoogleMapsLoaderService, useClass: GoogleMapsLoaderMock }
-            ]
-        }).compileComponents();
+            {
+                imports: [GoogleMapComponent],
+                providers:
+                    [
+                        provideRouter([]),
+                        { provide: ActivatedRoute, useValue: activatedRouteMock },
+                        { provide: MyCitiesStoreService, useValue: manualStore },
+                        { provide: GoogleMapsLoaderService, useClass: GoogleMapsLoaderMock }
+                    ]
+            }).compileComponents();
 
         const localFixture = TestBed.createComponent(GoogleMapComponent);
         const localComponent = localFixture.componentInstance;
@@ -561,9 +618,9 @@ describe('GoogleMapComponent', () =>
         localFixture.detectChanges(); // ngAfterViewInit runs, BUT ensureLoaded() does not emit => map not initialized
 
         const cities: MyCityDto[] =
-        [
-            createCity({ id: 10, city: 'Early', country: 'X', lat: 1, lon: 2 })
-        ];
+            [
+                createCity({ id: 10, city: 'Early', country: 'X', lat: 1, lon: 2 })
+            ];
 
         manualStore.emitFilteredCities(cities);
 
@@ -580,9 +637,9 @@ describe('GoogleMapComponent', () =>
     it('initMapOnce should render markers if latestCities already exists', async () =>
     {
         const latestCities: MyCityDto[] =
-        [
-            createCity({ id: 11, city: 'Stored', country: 'X', lat: 10, lon: 20 })
-        ];
+            [
+                createCity({ id: 11, city: 'Stored', country: 'X', lat: 10, lon: 20 })
+            ];
 
         (component as unknown as { latestCities: MyCityDto[] | null }).latestCities = latestCities;
 
@@ -594,9 +651,9 @@ describe('GoogleMapComponent', () =>
     it('renderMarkers should return early when map is undefined', () =>
     {
         const cities: MyCityDto[] =
-        [
-            createCity({ id: 12, city: 'NoMap', country: 'X', lat: 1, lon: 2 })
-        ];
+            [
+                createCity({ id: 12, city: 'NoMap', country: 'X', lat: 1, lon: 2 })
+            ];
 
         (component as unknown as { renderMarkers(c: MyCityDto[]): void }).renderMarkers(cities);
 
@@ -609,9 +666,9 @@ describe('GoogleMapComponent', () =>
         await (component as unknown as { initMapOnce(): Promise<void> }).initMapOnce();
 
         const cities1: MyCityDto[] =
-        [
-            createCity({ id: 13, city: 'A', country: 'X', lat: 1, lon: 2 })
-        ];
+            [
+                createCity({ id: 13, city: 'A', country: 'X', lat: 1, lon: 2 })
+            ];
 
         (component as unknown as { renderMarkers(c: MyCityDto[]): void }).renderMarkers(cities1);
         expect(g.createdMarkers.length).toBe(1);
@@ -647,16 +704,16 @@ describe('GoogleMapComponent', () =>
         await TestBed.resetTestingModule();
 
         await TestBed.configureTestingModule(
-        {
-            imports: [GoogleMapComponent],
-            providers:
-            [
-                provideRouter([]),
-                { provide: ActivatedRoute, useValue: activatedRouteMock },
-                { provide: MyCitiesStoreService, useValue: erroringStore },
-                { provide: GoogleMapsLoaderService, useClass: GoogleMapsLoaderMock }
-            ]
-        }).compileComponents();
+            {
+                imports: [GoogleMapComponent],
+                providers:
+                    [
+                        provideRouter([]),
+                        { provide: ActivatedRoute, useValue: activatedRouteMock },
+                        { provide: MyCitiesStoreService, useValue: erroringStore },
+                        { provide: GoogleMapsLoaderService, useClass: GoogleMapsLoaderMock }
+                    ]
+            }).compileComponents();
 
         const localFixture = TestBed.createComponent(GoogleMapComponent);
         localFixture.detectChanges();
@@ -668,15 +725,16 @@ describe('GoogleMapComponent', () =>
         expect(localMapsLoader.setOptions).toHaveBeenCalled();
     });
 
-    it('initMapOnce should use roadmap when selectedBasemap is null', async () =>
+    it('initMapOnce should restore the saved Google basemap', async () =>
     {
-        (component as unknown as { selectedBasemap: string | null }).selectedBasemap = null;
+        store.setBasemapMode('google', 'hybrid');
 
         await (component as unknown as { initMapOnce(): Promise<void> }).initMapOnce();
 
         const opts = g.getMapCtorOptions();
         expect(opts).not.toBeNull();
-        expect(opts?.mapTypeId).toBe('roadmap' as unknown as google.maps.MapTypeId);
+        expect(opts?.mapTypeId).toBe('hybrid' as unknown as google.maps.MapTypeId);
+        expect(component.selectedBasemap).toBe('hybrid');
     });
 
     it('initMapOnce idle event should call showOnceIfNeeded and open snackbar via presenter', async () =>
@@ -715,7 +773,7 @@ describe('GoogleMapComponent', () =>
     {
         await (component as unknown as { initMapOnce(): Promise<void> }).initMapOnce();
 
-        const dialog = TestBed.inject(MatDialog);
+        const dialog = TestBed.inject(PhotoViewerLauncherService);
         const debugLogger = TestBed.inject(DebugLoggerService);
         const dialogOpenSpy = spyOn(dialog, 'open').and.stub();
         const logSpy = spyOn(debugLogger, 'log').and.stub();
@@ -759,7 +817,7 @@ describe('GoogleMapComponent', () =>
         expect(clickEvent.preventDefault).toHaveBeenCalled();
         expect(clickEvent.stopPropagation).toHaveBeenCalled();
         expect(logSpy).toHaveBeenCalledWith('Opening photo dialog for photoKey: 123');
-        expect(dialogOpenSpy).toHaveBeenCalled();
+        expect(dialogOpenSpy).toHaveBeenCalledWith(123, 'google');
     });
 
     it('initMapOnce should wire domready and call attachPopupHandlers when domready fires', async () =>
@@ -788,7 +846,7 @@ describe('GoogleMapComponent', () =>
     {
         await (component as unknown as { initMapOnce(): Promise<void> }).initMapOnce();
 
-        const dialog = TestBed.inject(MatDialog);
+        const dialog = TestBed.inject(PhotoViewerLauncherService);
         const dialogOpenSpy = spyOn(dialog, 'open').and.stub();
 
         const container = document.createElement('div');
@@ -828,15 +886,15 @@ describe('GoogleMapComponent', () =>
         g.getZoomSpy.and.returnValue(15);
 
         const cities: MyCityDto[] =
-        [
-            createCity({ id: 20, city: 'Single', country: 'X', lat: 10, lon: 20 })
-        ];
+            [
+                createCity({ id: 20, city: 'Single', country: 'X', lat: 10, lon: 20 })
+            ];
 
         (component as unknown as { renderMarkers(c: MyCityDto[]): void }).renderMarkers(cities);
 
         g.triggerIdle();
 
-        expect(g.setZoomSpy).toHaveBeenCalledWith(8);
+        expect(g.setZoomSpy).toHaveBeenCalledWith(6);
     });
 
     it('renderMarkers should not change Google Maps zoom after idle when zoom is within the max', async () =>
@@ -846,9 +904,9 @@ describe('GoogleMapComponent', () =>
         g.getZoomSpy.and.returnValue(6);
 
         const cities: MyCityDto[] =
-        [
-            createCity({ id: 21, city: 'Single', country: 'X', lat: 10, lon: 20 })
-        ];
+            [
+                createCity({ id: 21, city: 'Single', country: 'X', lat: 10, lon: 20 })
+            ];
 
         (component as unknown as { renderMarkers(c: MyCityDto[]): void }).renderMarkers(cities);
 
@@ -864,9 +922,9 @@ describe('GoogleMapComponent', () =>
         g.getZoomSpy.and.returnValue(null);
 
         const cities: MyCityDto[] =
-        [
-            createCity({ id: 22, city: 'Single', country: 'X', lat: 10, lon: 20 })
-        ];
+            [
+                createCity({ id: 22, city: 'Single', country: 'X', lat: 10, lon: 20 })
+            ];
 
         (component as unknown as { renderMarkers(c: MyCityDto[]): void }).renderMarkers(cities);
 

@@ -1,12 +1,12 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, Input } from '@angular/core';
+import { DebugLoggerService } from '../core/services/debug-logger.service';
 import
 {
     PhotoViewerDialogComponent,
     PhotoViewerDialogData
 } from './photo-viewer-dialog.component';
-import { DebugLoggerService } from '../core/services/debug-logger.service';
 
 @Component({
     selector: 'app-photo-viewer',
@@ -17,7 +17,6 @@ class MockPhotoViewerComponent
 {
     @Input() photoKey!: number;
     @Input() isDialog!: boolean;
-    @Output() captionChanged = new EventEmitter<string>();
 }
 
 describe('PhotoViewerDialogComponent', () =>
@@ -26,6 +25,7 @@ describe('PhotoViewerDialogComponent', () =>
     let fixture: ComponentFixture<PhotoViewerDialogComponent>;
 
     let dialogRefSpy: jasmine.SpyObj<MatDialogRef<PhotoViewerDialogComponent>>;
+
     let debugLoggerSpy: jasmine.SpyObj<DebugLoggerService>;
 
     const dialogData: PhotoViewerDialogData =
@@ -40,32 +40,29 @@ describe('PhotoViewerDialogComponent', () =>
             ['close']
         );
 
-        debugLoggerSpy = jasmine.createSpyObj<DebugLoggerService>(
-            'DebugLoggerService',
-            ['log', 'warn', 'error']
-        );
+        debugLoggerSpy = jasmine.createSpyObj<DebugLoggerService>('DebugLoggerService', ['log', 'warn', 'error']);
 
         await TestBed.configureTestingModule(
-        {
-            imports: [PhotoViewerDialogComponent],
-            providers:
-            [
-                { provide: MAT_DIALOG_DATA, useValue: dialogData },
-                { provide: MatDialogRef, useValue: dialogRefSpy },
-                { provide: DebugLoggerService, useValue: debugLoggerSpy },
-            ]
-        })
-        .overrideComponent(PhotoViewerDialogComponent,
-        {
-            set:
             {
-                imports:
-                [
-                    MockPhotoViewerComponent
-                ]
-            }
-        })
-        .compileComponents();
+                imports: [PhotoViewerDialogComponent],
+                providers:
+                    [
+                        { provide: MAT_DIALOG_DATA, useValue: dialogData },
+                        { provide: MatDialogRef, useValue: dialogRefSpy },
+                        { provide: DebugLoggerService, useValue: debugLoggerSpy },
+                    ]
+            })
+            .overrideComponent(PhotoViewerDialogComponent,
+                {
+                    set:
+                    {
+                        imports:
+                            [
+                                MockPhotoViewerComponent
+                            ]
+                    }
+                })
+            .compileComponents();
 
         fixture = TestBed.createComponent(PhotoViewerDialogComponent);
         component = fixture.componentInstance;
@@ -85,27 +82,6 @@ describe('PhotoViewerDialogComponent', () =>
     it('should log dialog data on init', () =>
     {
         expect(debugLoggerSpy.log).toHaveBeenCalledWith('Dialog data:', dialogData);
-    });
-
-    it('should initialize captionText to empty string', () =>
-    {
-        expect(component.captionText).toBe('');
-    });
-
-    it('should update captionText when onCaptionChanged is called with text', () =>
-    {
-        component.onCaptionChanged('Hello');
-
-        expect(component.captionText).toBe('Hello');
-    });
-
-    it('should update captionText to empty string when onCaptionChanged is called with empty string', () =>
-    {
-        component.captionText = 'Old caption';
-
-        component.onCaptionChanged('');
-
-        expect(component.captionText).toBe('');
     });
 
     it('should close the dialog when close() is called', () =>

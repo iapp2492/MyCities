@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed, fakeAsync, tick, flushMicrotasks } from '@angular/core/testing';
 import { SimpleChange } from '@angular/core';
-import { of, throwError } from 'rxjs';
+import { of, throwError, Subject, finalize } from 'rxjs';
+import { MyCityPhotosResponseDto } from '../../models/MyCityPhotosResponseDto';
 
 import { PhotoViewerComponent } from './photo-viewer.component';
 import { MyCitiesApiService } from '../core/services/my-cities-api.service';
@@ -9,25 +10,25 @@ import { DebugLoggerService } from '../core/services/debug-logger.service';
 class MockSwiperContainerElement extends HTMLElement
 {
     public swiper =
-    {
-        params:
         {
-            preventClicks: true,
-            preventClicksPropagation: true,
-            touchStartPreventDefault: true
-        },
-        update: jasmine.createSpy('update'),
-        navigation:
-        {
-            init: jasmine.createSpy('nav.init'),
-            update: jasmine.createSpy('nav.update')
-        },
-        pagination:
-        {
-            render: jasmine.createSpy('pagination.render'),
-            update: jasmine.createSpy('pagination.update')
-        }
-    };
+            params:
+            {
+                preventClicks: true,
+                preventClicksPropagation: true,
+                touchStartPreventDefault: true
+            },
+            update: jasmine.createSpy('update'),
+            navigation:
+            {
+                init: jasmine.createSpy('nav.init'),
+                update: jasmine.createSpy('nav.update')
+            },
+            pagination:
+            {
+                render: jasmine.createSpy('pagination.render'),
+                update: jasmine.createSpy('pagination.update')
+            }
+        };
 
     public initialize = jasmine.createSpy('initialize');
 }
@@ -38,16 +39,16 @@ describe('PhotoViewerComponent', () =>
     let fixture: ComponentFixture<PhotoViewerComponent>;
 
     let apiSpy:
-    {
-        getAllPhotos: jasmine.Spy;
-    };
+        {
+            getAllPhotos: jasmine.Spy;
+        };
 
     let debugLoggerSpy:
-    {
-        log: jasmine.Spy;
-        warn: jasmine.Spy;
-        error: jasmine.Spy;
-    };
+        {
+            log: jasmine.Spy;
+            warn: jasmine.Spy;
+            error: jasmine.Spy;
+        };
 
     beforeAll(() =>
     {
@@ -72,14 +73,14 @@ describe('PhotoViewerComponent', () =>
         };
 
         await TestBed.configureTestingModule(
-        {
-            imports: [PhotoViewerComponent],
-            providers:
-            [
-                { provide: MyCitiesApiService, useValue: apiSpy },
-                { provide: DebugLoggerService, useValue: debugLoggerSpy }
-            ]
-        }).compileComponents();
+            {
+                imports: [PhotoViewerComponent],
+                providers:
+                    [
+                        { provide: MyCitiesApiService, useValue: apiSpy },
+                        { provide: DebugLoggerService, useValue: debugLoggerSpy }
+                    ]
+            }).compileComponents();
 
         fixture = TestBed.createComponent(PhotoViewerComponent);
         component = fixture.componentInstance;
@@ -95,9 +96,9 @@ describe('PhotoViewerComponent', () =>
         component.photoKey = 0;
 
         component.ngOnChanges(
-        {
-            photoKey: new SimpleChange(null, 0, true)
-        });
+            {
+                photoKey: new SimpleChange(null, 0, true)
+            });
 
         expect(component.photos).toEqual([]);
         expect(component.errorMessage).toBe('Invalid photo key.');
@@ -107,37 +108,37 @@ describe('PhotoViewerComponent', () =>
     it('should call api and populate photos for a valid photoKey', fakeAsync(() =>
     {
         apiSpy.getAllPhotos.and.returnValue(of(
-        [
-            {
-                photoKey: 5,
-                photos:
-                [
-                    {
-                        photoIndex: 2,
-                        sortOrder: 2,
-                        title: 'Second',
-                        caption: 'Caption 2',
-                        fileName: '5-2.jpg'
-                    },
-                    {
-                        photoIndex: 1,
-                        sortOrder: 1,
-                        title: 'First',
-                        caption: 'Caption 1',
-                        fileName: '5-1.jpg'
-                    }
-                ]
-            }
-        ]));
+            [
+                {
+                    photoKey: 5,
+                    photos:
+                        [
+                            {
+                                photoIndex: 2,
+                                sortOrder: 2,
+                                title: 'Second',
+                                caption: 'Caption 2',
+                                fileName: '5-2.jpg'
+                            },
+                            {
+                                photoIndex: 1,
+                                sortOrder: 1,
+                                title: 'First',
+                                caption: 'Caption 1',
+                                fileName: '5-1.jpg'
+                            }
+                        ]
+                }
+            ]));
 
         spyOn(component.captionChanged, 'emit');
 
         component.photoKey = 5;
 
         component.ngOnChanges(
-        {
-            photoKey: new SimpleChange(null, 5, true)
-        });
+            {
+                photoKey: new SimpleChange(null, 5, true)
+            });
 
         tick();
 
@@ -155,33 +156,33 @@ describe('PhotoViewerComponent', () =>
     it('should set no photos found error when group is missing', fakeAsync(() =>
     {
         apiSpy.getAllPhotos.and.returnValue(of(
-        [
-            {
-                photoKey: 99,
-                photos:
-                [
-                    {
-                        photoIndex: 1,
-                        sortOrder: 1,
-                        title: 'Other',
-                        caption: 'Other caption',
-                        fileName: '99-1.jpg'
-                    }
-                ]
-            }
-        ]));
+            [
+                {
+                    photoKey: 99,
+                    photos:
+                        [
+                            {
+                                photoIndex: 1,
+                                sortOrder: 1,
+                                title: 'Other',
+                                caption: 'Other caption',
+                                fileName: '99-1.jpg'
+                            }
+                        ]
+                }
+            ]));
 
         component.photoKey = 5;
 
         component.ngOnChanges(
-        {
-            photoKey: new SimpleChange(null, 5, true)
-        });
+            {
+                photoKey: new SimpleChange(null, 5, true)
+            });
 
         tick();
 
         expect(component.photos).toEqual([]);
-        expect(component.errorMessage).toBe('No photos found for PhotoKey 5.');
+        expect(component.errorMessage).toBe('No photos are available for this city.');
         expect(component.isLoading).toBeFalse();
     }));
 
@@ -192,9 +193,9 @@ describe('PhotoViewerComponent', () =>
         component.photoKey = 5;
 
         component.ngOnChanges(
-        {
-            photoKey: new SimpleChange(null, 5, true)
-        });
+            {
+                photoKey: new SimpleChange(null, 5, true)
+            });
 
         tick();
 
@@ -202,6 +203,130 @@ describe('PhotoViewerComponent', () =>
         expect(component.errorMessage).toBe('Failed to load photos.');
         expect(debugLoggerSpy.error).toHaveBeenCalled();
     }));
+
+    it('should cancel the previous request and retain the latest city photos', fakeAsync(() =>
+    {
+        const first = new Subject<MyCityPhotosResponseDto[]>();
+        const second = new Subject<MyCityPhotosResponseDto[]>();
+        const firstCancelled = jasmine.createSpy('firstCancelled');
+        apiSpy.getAllPhotos.and.returnValues(
+            first.pipe(finalize(firstCancelled)), second
+        );
+
+        component.photoKey = 5;
+        component.ngOnChanges({ photoKey: new SimpleChange(null, 5, true) });
+        component.currentIndex = 3;
+        component.isCaptionExpanded = true;
+        component.activeCaptionOverflows = true;
+
+        component.photoKey = 6;
+        component.ngOnChanges({ photoKey: new SimpleChange(5, 6, false) });
+
+        expect(firstCancelled).toHaveBeenCalledTimes(1);
+        expect(component.isLoading).toBeTrue();
+        expect(component.currentIndex).toBe(0);
+        expect(component.isCaptionExpanded).toBeFalse();
+        expect(component.activeCaptionOverflows).toBeFalse();
+
+        second.next([{
+            photoKey: 6, photos: [{
+                photoKey: 6, url: 'assets/images/cities/6/6-1.jpg',
+                photoIndex: 1, sortOrder: 1, title: 'Latest',
+                caption: 'Latest caption', fileName: '6-1.jpg'
+            }]
+        }]);
+        first.next([]);
+        tick();
+
+        expect(component.photos[0].src).toBe('assets/images/cities/6/6-1.jpg');
+        expect(component.errorMessage).toBe('');
+        expect(component.isLoading).toBeFalse();
+    }));
+
+    it('should cancel a pending request when the new photo key is invalid', () =>
+    {
+        const response = new Subject<MyCityPhotosResponseDto[]>();
+        const cancelled = jasmine.createSpy('cancelled');
+        apiSpy.getAllPhotos.and.returnValue(response.pipe(finalize(cancelled)));
+        spyOn(component.captionChanged, 'emit');
+
+        component.photoKey = 5;
+        component.ngOnChanges({ photoKey: new SimpleChange(null, 5, true) });
+        component.photoKey = 0;
+        component.ngOnChanges({ photoKey: new SimpleChange(5, 0, false) });
+        response.next([]);
+
+        expect(cancelled).toHaveBeenCalledTimes(1);
+        expect(apiSpy.getAllPhotos).toHaveBeenCalledTimes(1);
+        expect(component.photos).toEqual([]);
+        expect(component.errorMessage).toBe('Invalid photo key.');
+        expect(component.isLoading).toBeFalse();
+        expect(component.captionChanged.emit).toHaveBeenCalledWith('');
+    });
+
+    it('should cancel a pending request when destroyed', () =>
+    {
+        const response = new Subject<MyCityPhotosResponseDto[]>();
+        const cancelled = jasmine.createSpy('cancelled');
+        apiSpy.getAllPhotos.and.returnValue(response.pipe(finalize(cancelled)));
+
+        component.photoKey = 5;
+        component.ngOnChanges({ photoKey: new SimpleChange(null, 5, true) });
+        component.ngOnDestroy();
+        response.next([]);
+
+        expect(cancelled).toHaveBeenCalledTimes(1);
+        expect(component.photos).toEqual([]);
+        expect(component.errorMessage).toBe('');
+    });
+
+    it('should show loading then failure without replacing the swiper element', () =>
+    {
+        const response = new Subject<MyCityPhotosResponseDto[]>();
+        apiSpy.getAllPhotos.and.returnValue(response);
+        fixture.componentRef.setInput('photoKey', 5);
+        fixture.detectChanges();
+
+        const host: HTMLElement = fixture.nativeElement;
+        const swiper = host.querySelector('swiper-container');
+        expect(host.querySelector('[role="status"]')?.textContent).toContain('Loading photos');
+        expect(host.querySelector('.stage')?.getAttribute('aria-busy')).toBe('true');
+        expect(host.querySelector('.caption')).toBeNull();
+
+        response.error(new Error('Request failed'));
+        fixture.detectChanges();
+
+        expect(host.querySelector('[role="status"]')).toBeNull();
+        expect(host.querySelector('[role="alert"]')?.textContent).toContain('Failed to load photos.');
+        expect(host.querySelector('.stage')?.getAttribute('aria-busy')).toBe('false');
+        expect(host.querySelector('.index')).toBeNull();
+        expect(host.querySelector('swiper-container')).toBe(swiper);
+    });
+
+    it('should display a friendly empty message without a photo count', () =>
+    {
+        fixture.componentRef.setInput('photoKey', 5);
+        fixture.detectChanges();
+
+        const host: HTMLElement = fixture.nativeElement;
+        expect(host.querySelector('[role="alert"]')?.textContent).toContain(
+            'No photos are available for this city.'
+        );
+        expect(host.querySelector('.caption')).toBeNull();
+        expect(host.textContent).not.toContain('PhotoKey');
+    });
+
+    it('should render the count and caption when photos are available', () =>
+    {
+        component.photos = [{ src: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', alt: 'City', caption: 'City caption' }];
+        fixture.detectChanges();
+
+        const host: HTMLElement = fixture.nativeElement;
+        expect(host.querySelector('.index')?.textContent).toContain('1 / 1');
+        expect(host.querySelector('.caption-text')?.textContent).toContain('City caption');
+        expect(host.querySelector('[role="status"]')).toBeNull();
+        expect(host.querySelector('[role="alert"]')).toBeNull();
+    });
 
     it('should expand and collapse caption', () =>
     {
@@ -218,23 +343,23 @@ describe('PhotoViewerComponent', () =>
         spyOn(component.captionChanged, 'emit');
 
         component.photos =
-        [
-            { src: 'a.jpg', alt: 'A', caption: 'Caption A' },
-            { src: 'b.jpg', alt: 'B', caption: 'Caption B' }
-        ];
+            [
+                { src: 'a.jpg', alt: 'A', caption: 'Caption A' },
+                { src: 'b.jpg', alt: 'B', caption: 'Caption B' }
+            ];
         component.isCaptionExpanded = true;
         component.activeCaptionOverflows = true;
 
         const evt =
-        {
-            target:
             {
-                swiper:
+                target:
                 {
-                    activeIndex: 1
+                    swiper:
+                    {
+                        activeIndex: 1
+                    }
                 }
-            }
-        } as unknown as Event;
+            } as unknown as Event;
 
         component.onSlideChange(evt);
         tick();
@@ -250,20 +375,20 @@ describe('PhotoViewerComponent', () =>
         spyOn(component.captionChanged, 'emit');
 
         component.photos =
-        [
-            { src: 'a.jpg', alt: 'A', caption: 'Caption A' },
-            { src: 'b.jpg', alt: 'B', caption: 'Caption B' }
-        ];
+            [
+                { src: 'a.jpg', alt: 'A', caption: 'Caption A' },
+                { src: 'b.jpg', alt: 'B', caption: 'Caption B' }
+            ];
 
         const evt = new CustomEvent('swiperslidechange',
-        {
-            detail:
-            [
-                {
-                    activeIndex: 1
-                }
-            ]
-        });
+            {
+                detail:
+                    [
+                        {
+                            activeIndex: 1
+                        }
+                    ]
+            });
 
         component.onSwiperSlideChange(evt);
         tick();
@@ -277,22 +402,22 @@ describe('PhotoViewerComponent', () =>
         spyOn(component.captionChanged, 'emit');
 
         component.photos =
-        [
-            { src: 'a.jpg', alt: 'A', caption: 'Caption A' },
-            { src: 'b.jpg', alt: 'B', caption: 'Caption B' }
-        ];
+            [
+                { src: 'a.jpg', alt: 'A', caption: 'Caption A' },
+                { src: 'b.jpg', alt: 'B', caption: 'Caption B' }
+            ];
 
         const evt =
-        {
-            detail: null,
-            target:
             {
-                swiper:
+                detail: null,
+                target:
                 {
-                    activeIndex: 0
+                    swiper:
+                    {
+                        activeIndex: 0
+                    }
                 }
-            }
-        } as unknown as Event;
+            } as unknown as Event;
 
         component.onSwiperSlideChange(evt);
         tick();
@@ -331,42 +456,42 @@ describe('PhotoViewerComponent', () =>
     it('load should sort by sortOrder then by photoIndex and use fallback alt text', fakeAsync(() =>
     {
         apiSpy.getAllPhotos.and.returnValue(of(
-        [
-            {
-                photoKey: 5,
-                photos:
-                [
-                    {
-                        photoIndex: 3,
-                        sortOrder: 1,
-                        title: '',
-                        caption: 'Caption 3',
-                        fileName: '5-3.jpg'
-                    },
-                    {
-                        photoIndex: 1,
-                        sortOrder: 1,
-                        title: '',
-                        caption: 'Caption 1',
-                        fileName: '5-1.jpg'
-                    },
-                    {
-                        photoIndex: 2,
-                        sortOrder: 0,
-                        title: 'Explicit title',
-                        caption: 'Caption 2',
-                        fileName: '5-2.jpg'
-                    }
-                ]
-            }
-        ]));
+            [
+                {
+                    photoKey: 5,
+                    photos:
+                        [
+                            {
+                                photoIndex: 3,
+                                sortOrder: 1,
+                                title: '',
+                                caption: 'Caption 3',
+                                fileName: '5-3.jpg'
+                            },
+                            {
+                                photoIndex: 1,
+                                sortOrder: 1,
+                                title: '',
+                                caption: 'Caption 1',
+                                fileName: '5-1.jpg'
+                            },
+                            {
+                                photoIndex: 2,
+                                sortOrder: 0,
+                                title: 'Explicit title',
+                                caption: 'Caption 2',
+                                fileName: '5-2.jpg'
+                            }
+                        ]
+                }
+            ]));
 
         component.photoKey = 5;
 
         component.ngOnChanges(
-        {
-            photoKey: new SimpleChange(null, 5, true)
-        });
+            {
+                photoKey: new SimpleChange(null, 5, true)
+            });
 
         tick();
 
@@ -383,15 +508,15 @@ describe('PhotoViewerComponent', () =>
         spyOn(component.captionChanged, 'emit');
 
         component.photos =
-        [
-            { src: 'a.jpg', alt: 'A', caption: 'Caption A' },
-            { src: 'b.jpg', alt: 'B', caption: 'Caption B' }
-        ];
+            [
+                { src: 'a.jpg', alt: 'A', caption: 'Caption A' },
+                { src: 'b.jpg', alt: 'B', caption: 'Caption B' }
+            ];
 
         const evt =
-        {
-            target: {}
-        } as unknown as Event;
+            {
+                target: {}
+            } as unknown as Event;
 
         component.onSlideChange(evt);
         tick();
@@ -442,9 +567,9 @@ describe('PhotoViewerComponent', () =>
         );
 
         (component as unknown as { captionEl: unknown }).captionEl =
-        {
-            nativeElement: captionNativeEl
-        } as unknown as never;
+            {
+                nativeElement: captionNativeEl
+            } as unknown as never;
 
         const measureSpy = spyOn(
             component as unknown as { measureTwoLineOverflow(el: HTMLElement): boolean },
@@ -478,23 +603,23 @@ describe('PhotoViewerComponent', () =>
         el.textContent = 'Some caption text';
 
         spyOn(el, 'getBoundingClientRect').and.returnValue(
-        {
-            width: 100,
-            height: 20
-        } as DOMRect);
+            {
+                width: 100,
+                height: 20
+            } as DOMRect);
 
         spyOn(window, 'getComputedStyle').and.returnValue(
-        {
-            lineHeight: 'normal',
-            fontSize: '20px',
-            font: '400 20px Arial',
-            fontFamily: 'Arial',
-            fontWeight: '400',
-            fontStyle: 'normal',
-            letterSpacing: '0px',
-            wordBreak: 'normal',
-            overflowWrap: 'break-word'
-        } as CSSStyleDeclaration);
+            {
+                lineHeight: 'normal',
+                fontSize: '20px',
+                font: '400 20px Arial',
+                fontFamily: 'Arial',
+                fontWeight: '400',
+                fontStyle: 'normal',
+                letterSpacing: '0px',
+                wordBreak: 'normal',
+                overflowWrap: 'break-word'
+            } as CSSStyleDeclaration);
 
         const originalCreateElement = document.createElement.bind(document);
         spyOn(document, 'createElement').and.callFake((tagName: string): HTMLElement =>
@@ -503,10 +628,10 @@ describe('PhotoViewerComponent', () =>
             if (tagName === 'div')
             {
                 spyOn(probe, 'getBoundingClientRect').and.returnValue(
-                {
-                    width: 100,
-                    height: 60
-                } as DOMRect);
+                    {
+                        width: 100,
+                        height: 60
+                    } as DOMRect);
             }
 
             return probe;
@@ -526,50 +651,24 @@ describe('PhotoViewerComponent', () =>
     it('debugLog should call debug logger', () =>
     {
         component.debugLog('hello');
-
         expect(debugLoggerSpy.log).toHaveBeenCalledWith('hello');
     });
 
-    it('ngOnDestroy should complete destroyed$ and remove resize listener', () =>
+    it('should log construction', () =>
     {
-        const removeSpy = spyOn(window, 'removeEventListener');
+        expect(debugLoggerSpy.log).toHaveBeenCalledWith('PhotoViewerComponent constructed');
+    });
 
+    it('ngOnDestroy should complete destroyed$', () =>
+    {
         const destroyed$ = (component as unknown as
-        {
-            destroyed$: { isStopped?: boolean; closed?: boolean };
-        }).destroyed$;
+            {
+                destroyed$: { isStopped?: boolean; closed?: boolean };
+            }).destroyed$;
 
         component.ngOnDestroy();
 
-        expect(removeSpy).toHaveBeenCalled();
         expect(destroyed$.isStopped || destroyed$.closed).toBeTrue();
-    });
-
-    it('onResize should schedule recalcCaptionOverflows with requestAnimationFrame', () =>
-    {
-        const recalcSpy = spyOn(
-            component as unknown as { recalcCaptionOverflows(): void },
-            'recalcCaptionOverflows'
-        );
-
-        let capturedCallback: FrameRequestCallback | undefined;
-
-        const rafSpy = spyOn(window, 'requestAnimationFrame').and.callFake((callback: FrameRequestCallback) =>
-        {
-            capturedCallback = callback;
-            return 1;
-        });
-
-        const onResize = (component as unknown as { onResize: () => void }).onResize;
-
-        onResize();
-
-        expect(rafSpy).toHaveBeenCalledTimes(1);
-        expect(recalcSpy).not.toHaveBeenCalled();
-
-        capturedCallback?.(0);
-
-        expect(recalcSpy).toHaveBeenCalledTimes(1);
     });
 
 });

@@ -3,12 +3,12 @@ import { BehaviorSubject, Observable, of, combineLatest, throwError, forkJoin } 
 import { catchError, finalize, shareReplay, map } from 'rxjs';
 import { MyCityDto } from '../../../models/myCityDto';
 import { MyCitiesApiService } from '../services/my-cities-api.service';
-import { BasemapMode } from '../../../models/basemapMode';
+import { BasemapSelections, DEFAULT_BASEMAPS, isBasemapForEngine } from '../../../models/basemapMode';
 import { DebugLoggerService } from './debug-logger.service';
 import { LocationFilterOption } from '../../../models/LocationFilterOption';
 
 @Injectable({ providedIn: 'root' })
-export class MyCitiesStoreService 
+export class MyCitiesStoreService
 {
     private api = inject(MyCitiesApiService);
     private readonly debugLogger = inject(DebugLoggerService);
@@ -29,7 +29,7 @@ export class MyCitiesStoreService
 
     private readonly _decadesSubject = new BehaviorSubject<string[]>([]);
     readonly decades$ = this._decadesSubject.asObservable();
-    
+
     private readonly _locationSubject = new BehaviorSubject<LocationFilterOption[]>([]);
     readonly locations$ = this._locationSubject.asObservable();
 
@@ -42,17 +42,16 @@ export class MyCitiesStoreService
     private readonly _locationFilterSubject = new BehaviorSubject<string | null>(null);
     readonly locationFilter$ = this._locationFilterSubject.asObservable();
 
-    private readonly _basemapModeSubject = new BehaviorSubject<BasemapMode>('standard');
-    readonly basemapMode$ = this._basemapModeSubject.asObservable();
+    private basemapSelections: Readonly<BasemapSelections> = { ...DEFAULT_BASEMAPS };
 
     readonly filteredCities$ = combineLatest(
-            [
-                this.cities$,
-                this.stayDurationFilter$,
-                this.decadeFilter$,
-                this.locationFilter$
-            ])
-            .pipe(this.debugLogger.debugTap<[MyCityDto[] | null, string | null, string | null, string | null]>
+        [
+            this.cities$,
+            this.stayDurationFilter$,
+            this.decadeFilter$,
+            this.locationFilter$
+        ])
+        .pipe(this.debugLogger.debugTap<[MyCityDto[] | null, string | null, string | null, string | null]>
             (
                 'Combining cities with filters (values):',
                 ([cities, stay, decade, location]) =>
@@ -63,14 +62,14 @@ export class MyCitiesStoreService
                     location
                 })
             ),
-            map(([cities, stay, decade, location]) => 
+            map(([cities, stay, decade, location]) =>
             {
-                if (!cities) 
+                if (!cities)
                 {
                     return [];
                 }
 
-                return cities.filter(c => 
+                return cities.filter(c =>
                 {
                     const cStay = String(c.stayDuration ?? '').trim();
                     const cDecadesRaw = String(c.decades ?? '').trim();
@@ -86,7 +85,7 @@ export class MyCitiesStoreService
 
                     const locationOk = this.isLocationMatch(c, location);
 
-                    return stayOk && decadeOk  && locationOk;
+                    return stayOk && decadeOk && locationOk;
                 });
             }),
             shareReplay({ bufferSize: 1, refCount: false })
@@ -113,13 +112,13 @@ export class MyCitiesStoreService
         }
 
         return true;
-    }    
-        
+    }
+
     private _loadOnce$?: Observable<MyCityDto[]>;
 
     // Call this from ANY map component. First call hits the API; later calls reuse cached result.
     ensureLoaded(): Observable<MyCityDto[]>
-    {        
+    {
         // If we already have cities in memory, return them immediately.
         const existing = this._citiesSubject.value;
         if (existing.length > 0)
@@ -137,42 +136,42 @@ export class MyCitiesStoreService
         this._errorSubject.next(null);
 
         this._loadOnce$ = forkJoin(
-        {
-            cities: this.api.getAllCities(),
-            activePhotoKeys: this.api.getActivePhotoKeys(),
-            locationOptions: this.api.getLocationFilterOptions() 
-        })
-        .pipe(
-            map(({ cities, activePhotoKeys, locationOptions }) =>
             {
-                const valid = cities.filter(c =>
-                    this.isValidCoordinate(c.lat) &&
-                    this.isValidCoordinate(c.lon)
-                );
-
-                if (valid.length !== cities.length)
+                cities: this.api.getAllCities(),
+                activePhotoKeys: this.api.getActivePhotoKeys(),
+                locationOptions: this.api.getLocationFilterOptions()
+            })
+            .pipe(
+                map(({ cities, activePhotoKeys, locationOptions }) =>
                 {
-                    this.debugLogger.warn(
-                        `Filtered out ${cities.length - valid.length} cities due to invalid coordinates`
+                    const valid = cities.filter(c =>
+                        this.isValidCoordinate(c.lat) &&
+                        this.isValidCoordinate(c.lon)
                     );
-                }
 
-                this.setActivePhotoKeys(activePhotoKeys);
-                this._citiesSubject.next(valid);
-                this._locationSubject.next(locationOptions);
-                this.buildFilterLists(valid);
+                    if (valid.length !== cities.length)
+                    {
+                        this.debugLogger.warn(
+                            `Filtered out ${cities.length - valid.length} cities due to invalid coordinates`
+                        );
+                    }
 
-                return valid;
-            }),
-            catchError(err =>
-            {
-                this._errorSubject.next('Failed to load cities');
-                this._loadOnce$ = undefined;
-                return throwError(() => err);
-            }),
-            finalize(() => this._loadingSubject.next(false)),
-            shareReplay({ bufferSize: 1, refCount: false })
-        );
+                    this.setActivePhotoKeys(activePhotoKeys);
+                    this._citiesSubject.next(valid);
+                    this._locationSubject.next(locationOptions);
+                    this.buildFilterLists(valid);
+
+                    return valid;
+                }),
+                catchError(err =>
+                {
+                    this._errorSubject.next('Failed to load cities');
+                    this._loadOnce$ = undefined;
+                    return throwError(() => err);
+                }),
+                finalize(() => this._loadingSubject.next(false)),
+                shareReplay({ bufferSize: 1, refCount: false })
+            );
 
         return this._loadOnce$;
     }
@@ -182,9 +181,9 @@ export class MyCitiesStoreService
         return Number.isFinite(Number(value));
     }
 
-    // In case we ever implement a manual refresh button. 
-    // This clears the cache and forces a reload on next ensureLoaded() call.   
-    refresh(): Observable<MyCityDto[]> 
+    // In case we ever implement a manual refresh button.
+    // This clears the cache and forces a reload on next ensureLoaded() call.
+    refresh(): Observable<MyCityDto[]>
     {
         this._citiesSubject.next([]);
         this._stayDurationsSubject.next([]);
@@ -197,9 +196,9 @@ export class MyCitiesStoreService
     public setActivePhotoKeys(keys: number[]): void
     {
         this.activePhotoKeys = new Set
-        (
-            keys.filter(key => Number.isFinite(key) && key > 0)
-        );
+            (
+                keys.filter(key => Number.isFinite(key) && key > 0)
+            );
     }
 
     public hasPhotos(photoKey: number | null | undefined): boolean
@@ -208,45 +207,56 @@ export class MyCitiesStoreService
         return result;
     }
 
-    setStayDurationFilter(value: string | null): void 
+    setStayDurationFilter(value: string | null): void
     {
         const v = (value ?? '').trim();
         this._stayDurationFilterSubject.next(v === '' ? null : v);
     }
 
-    setDecadeFilter(value: string | null): void 
+    setDecadeFilter(value: string | null): void
     {
         const v = (value ?? '').trim();
         this._decadeFilterSubject.next(v === '' ? null : v);
     }
-    
-    setLocationFilter(value: string | null): void 
+
+    setLocationFilter(value: string | null): void
     {
         const v = (value ?? '').trim();
         this._locationFilterSubject.next(v === '' ? null : v);
     }
 
-    clearFilters(): void 
+    clearFilters(): void
     {
         this._stayDurationFilterSubject.next(null);
         this._decadeFilterSubject.next(null);
+        this._locationFilterSubject.next(null);
     }
 
-    setBasemapMode(mode: BasemapMode): void 
+    getBasemapMode<E extends keyof BasemapSelections>(engine: E): BasemapSelections[E]
     {
-        this._basemapModeSubject.next(mode);
+        return this.basemapSelections[engine];
     }
 
-    private normalizeToken(value: unknown): string 
+    setBasemapMode<E extends keyof BasemapSelections>(engine: E, mode: BasemapSelections[E]): void
+    {
+        if (!isBasemapForEngine(engine, mode))
+        {
+            return;
+        }
+
+        this.basemapSelections = { ...this.basemapSelections, [engine]: mode };
+    }
+
+    private normalizeToken(value: unknown): string
     {
         return String(value ?? '').trim();
     }
 
     /** Splits things like "1980s, 1990s; 2000s" into ["1980s","1990s","2000s"] */
-    private splitMulti(value: unknown): string[] 
+    private splitMulti(value: unknown): string[]
     {
         const s = this.normalizeToken(value);
-        if (!s) 
+        if (!s)
         {
             return [];
         }
@@ -256,17 +266,17 @@ export class MyCitiesStoreService
             .filter(Boolean);
     }
 
-    private alphaSort(a: string, b: string): number 
+    private alphaSort(a: string, b: string): number
     {
         return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
     }
 
     // This sorts our decades in chronological order (e.g., 1970s, 1980s...) */
-    private decadeSort(a: string, b: string): number 
+    private decadeSort(a: string, b: string): number
     {
         const na = parseInt(a, 10);
         const nb = parseInt(b, 10);
-        if (!Number.isNaN(na) && !Number.isNaN(nb)) 
+        if (!Number.isNaN(na) && !Number.isNaN(nb))
         {
             return na - nb;
         }
@@ -276,41 +286,41 @@ export class MyCitiesStoreService
     // This sorts our stay durations in a logical order (e.g., 1 mo, 2 mos, 3-5 mos, 1 yr, 2 yrs, >20 yrs)
     // The whole point of this app is to list cities where I have lived for a minimum of one continuous month.
     // so these stay durations are all based on that minimum threshold and are meant to be human-friendly labels, not precise durations.
-    private durationSortKey(label: string): number 
+    private durationSortKey(label: string): number
     {
         const s = (label ?? '').trim().toLowerCase();
 
         // > 20 yr  (or >20 yr, > 20 yrs, etc)
         const gt = s.match(/^>\s*(\d+)\s*yr/);
-        if (gt) 
+        if (gt)
         {
             return (parseInt(gt[1], 10) + 0.5) * 12;
         } // put it after 20 yrs
 
         // Range months: 3-5 mos, 6 - 11 mos
         const mosRange = s.match(/^(\d+)\s*-\s*(\d+)\s*mo/);
-        if (mosRange) 
+        if (mosRange)
         {
             return parseInt(mosRange[1], 10);
         } // sort by start of range
 
         // Single months: 1 mo, 2 mos
         const mosSingle = s.match(/^(\d+)\s*mo/);
-        if (mosSingle) 
+        if (mosSingle)
         {
             return parseInt(mosSingle[1], 10);
         }
 
         // Range years: 3-5 yrs, 10-19 yrs
         const yrRange = s.match(/^(\d+)\s*-\s*(\d+)\s*yr/);
-        if (yrRange) 
+        if (yrRange)
         {
             return parseInt(yrRange[1], 10) * 12;
         }
 
         // Single years: 1 yr, 2 yrs
         const yrSingle = s.match(/^(\d+)\s*yr/);
-        if (yrSingle) 
+        if (yrSingle)
         {
             return parseInt(yrSingle[1], 10) * 12;
         }
@@ -319,11 +329,11 @@ export class MyCitiesStoreService
         return Number.POSITIVE_INFINITY;
     }
 
-    private stayDurationSort(a: string, b: string): number 
+    private stayDurationSort(a: string, b: string): number
     {
         const ka = this.durationSortKey(a);
         const kb = this.durationSortKey(b);
-        if (ka !== kb) 
+        if (ka !== kb)
         {
             return ka - kb;
         }
@@ -332,22 +342,22 @@ export class MyCitiesStoreService
     }
 
     // Builds the lists of unique stay durations and decades for the filter dropdowns.
-    private buildFilterLists(cities: MyCityDto[]): void 
+    private buildFilterLists(cities: MyCityDto[]): void
     {
         const staySet = new Set<string>();  //Sets automatically handle uniqueness for us
         const decadeSet = new Set<string>();
 
-        for (const c of cities) 
+        for (const c of cities)
         {
             // StayDuration: always a single value
             const stay = this.normalizeToken(c.stayDuration);
-            if (stay) 
+            if (stay)
             {
                 staySet.add(stay);
             }
 
-            // Decades: in some cases are multi-value 
-            for (const d of this.splitMulti(c.decades)) 
+            // Decades: in some cases are multi-value
+            for (const d of this.splitMulti(c.decades))
             {
                 decadeSet.add(d);
             }
@@ -356,8 +366,7 @@ export class MyCitiesStoreService
         const stayDurations = Array.from(staySet).sort((a, b) => this.stayDurationSort(a, b));
         const decades = Array.from(decadeSet).sort((a, b) => this.decadeSort(a, b));
 
-        // Trigger updates to the filteredCities$ stream by emitting new lists 
-        // (even if the actual values haven't changed, which is unlikely since these are derived from the data)
+        // Publish the dropdown options derived from the loaded cities.
         this._stayDurationsSubject.next(stayDurations);
         this._decadesSubject.next(decades);
     }

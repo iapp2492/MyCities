@@ -30,6 +30,7 @@
 }
 
 .stage {
+    position: relative;
     flex: 1;
     min-height: 0;
     /* critical so the swiper can size inside a flex column */
@@ -160,7 +161,6 @@
     cursor: pointer;
     padding: 0;
     position: relative;
-    // z-index: 6;
     pointer-events: auto;
 }
 
@@ -188,4 +188,19 @@ swiper-container {
 :host ::ng-deep swiper-slide {
     height: 100%;
     display: flex;
+}
+
+.viewer-status {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    box-sizing: border-box;
+    background-color: #000;
+    color: #fff;
+    text-align: center;
+    overflow-wrap: anywhere;
 }

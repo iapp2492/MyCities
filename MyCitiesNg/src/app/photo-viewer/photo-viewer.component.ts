@@ -1,10 +1,11 @@
-import { CommonModule } from '@angular/common';
-import { AfterViewInit, ChangeDetectorRef, Component, CUSTOM_ELEMENTS_SCHEMA, inject, Input, OnChanges, OnDestroy, SimpleChanges, ViewChild } from '@angular/core';
+import {
+    AfterViewInit, ChangeDetectorRef, Component, CUSTOM_ELEMENTS_SCHEMA,
+    ElementRef, EventEmitter, inject, Input, OnChanges, OnDestroy,
+    Output, SimpleChanges, ViewChild
+} from '@angular/core';
 import { Subject, takeUntil } from 'rxjs';
 import { MyCitiesApiService } from '../core/services/my-cities-api.service';
 import { MyCityPhotosResponseDto } from '../../models/MyCityPhotosResponseDto';
-import { Output, EventEmitter } from '@angular/core';
-import { ElementRef } from '@angular/core';
 import { DebugLoggerService } from '../core/services/debug-logger.service';
 
 export interface PhotoVm
@@ -17,7 +18,7 @@ export interface PhotoVm
 interface SwiperContainerElement extends HTMLElement
 {
     initialize: () => void;
-    swiper?: 
+    swiper?:
     {
         params:
         {
@@ -36,7 +37,6 @@ interface SwiperContainerElement extends HTMLElement
 @Component({
     selector: 'app-photo-viewer',
     standalone: true,
-    imports: [CommonModule],
     templateUrl: './photo-viewer.component.html',
     styleUrl: './photo-viewer.component.scss',
     schemas: [CUSTOM_ELEMENTS_SCHEMA]
@@ -64,6 +64,7 @@ export class PhotoViewerComponent implements OnChanges, OnDestroy, AfterViewInit
     public currentIndex = 0;
 
     private readonly destroyed$: Subject<void> = new Subject<void>();
+    private readonly photoKeyChanged$ = new Subject<void>();
     private readonly api = inject(MyCitiesApiService);
     private readonly debugLogger = inject(DebugLoggerService);
 
@@ -97,32 +98,30 @@ export class PhotoViewerComponent implements OnChanges, OnDestroy, AfterViewInit
             el.swiper?.pagination?.render();
             el.swiper?.pagination?.update();
             el.swiper?.update();
-        });    
+        });
 
-        // Optional: recalc on resize
-        // window.addEventListener('resize', this.onResize);
     }
 
     public swiperConfig: Record<string, unknown> =
-    {
-        slidesPerView: 1,
-        spaceBetween: 12,
-        centeredSlides: true,
-        navigation: true,
-        pagination: { clickable: true },
-        keyboard: { enabled: true },
-        grabCursor: true,
-        loop: false,
-        simulateTouch: true,
+        {
+            slidesPerView: 1,
+            spaceBetween: 12,
+            centeredSlides: true,
+            navigation: true,
+            pagination: { clickable: true },
+            keyboard: { enabled: true },
+            grabCursor: true,
+            loop: false,
+            simulateTouch: true,
 
-        // Critical for buttons inside slides
-        preventClicks: false,
-        preventClicksPropagation: false,
-        touchStartPreventDefault: false,
+            // Critical for buttons inside slides
+            preventClicks: false,
+            preventClicksPropagation: false,
+            touchStartPreventDefault: false,
 
-        noSwiping: true,
-        noSwipingClass: 'swiper-no-swiping'
-    };
+            noSwiping: true,
+            noSwipingClass: 'swiper-no-swiping'
+        };
 
     public ngOnChanges(changes: SimpleChanges): void
     {
@@ -130,6 +129,14 @@ export class PhotoViewerComponent implements OnChanges, OnDestroy, AfterViewInit
         {
             return;
         }
+
+        this.photoKeyChanged$.next();
+
+        this.isLoading = false;
+        this.currentIndex = 0;
+        this.isCaptionExpanded = false;
+        this.activeCaptionOverflows = false;
+        this.captionChanged.emit('');
 
         const key = Number(this.photoKey);
 
@@ -159,10 +166,14 @@ export class PhotoViewerComponent implements OnChanges, OnDestroy, AfterViewInit
         this.debugLogger.log(`PhotoViewerComponent.load(${photoKey}) calling api...`);
 
         this.api.getAllPhotos()
-            .pipe(takeUntil(this.destroyed$))
+            .pipe(
+                takeUntil(this.photoKeyChanged$),   // Cancel any pending requests if photoKey changes
+                takeUntil(this.destroyed$)          // Cancel any pending requests when the component is destroyed
+            )
             .subscribe({
                 next: (groups: MyCityPhotosResponseDto[]) =>
                 {
+
                     this.debugLogger.log('getAllPhotos returned groups:', groups);
 
                     const group = groups.find(g => g.photoKey === photoKey);
@@ -172,7 +183,7 @@ export class PhotoViewerComponent implements OnChanges, OnDestroy, AfterViewInit
                     if (!group || group.photos.length === 0)
                     {
                         this.photos = [];
-                        this.errorMessage = `No photos found for PhotoKey ${photoKey}.`;
+                        this.errorMessage = 'No photos are available for this city.';
                         this.isLoading = false;
                         return;
                     }
@@ -226,7 +237,7 @@ export class PhotoViewerComponent implements OnChanges, OnDestroy, AfterViewInit
         // Actual file structure: assets/images/cities/{photoKey}/{photoKey}-{photoIndex}.jpg
         const folder = `assets/images/cities/${photoKey}`;
         const url = `${folder}/${fileNameFromDb}`;
-        this.debugLogger.log(`Building photo URL for photoKey=${photoKey}, fileNameFromDb="${fileNameFromDb}": ${url}`); 
+        this.debugLogger.log(`Building photo URL for photoKey=${photoKey}, fileNameFromDb="${fileNameFromDb}": ${url}`);
         return url;
     }
 
@@ -276,12 +287,12 @@ export class PhotoViewerComponent implements OnChanges, OnDestroy, AfterViewInit
             }
         }
 
-        // Fallback to our old approach
+        // Some Swiper events expose the index on the target instead of detail.
         const target = evt.target as { swiper?: { activeIndex?: number } } | null;
         const idx = target?.swiper?.activeIndex;
 
         return typeof idx === 'number' ? idx : 0;
-    }   
+    }
 
     private recalcCaptionOverflows(): void
     {
@@ -367,25 +378,15 @@ export class PhotoViewerComponent implements OnChanges, OnDestroy, AfterViewInit
         return fullHeight > maxTwoLines;
     }
 
-    private readonly onResize = (): void =>
-    {
-        requestAnimationFrame(() =>
-        {
-            this.recalcCaptionOverflows();
-        });
-    };
-
     public debugLog(message: string): void
     {
-        // Keep this for now; remove later when done debugging.
-         
         this.debugLogger.log(message);
     }
-        
+
     public ngOnDestroy(): void
     {
-        window.removeEventListener('resize', this.onResize);
         this.destroyed$.next();
         this.destroyed$.complete();
+        this.photoKeyChanged$.complete();
     }
 }

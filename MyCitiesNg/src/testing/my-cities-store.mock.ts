@@ -1,5 +1,5 @@
 import { BehaviorSubject, Observable, of } from 'rxjs';
-import { BasemapMode } from '../models/basemapMode';     // adjust paths
+import { BasemapSelections, DEFAULT_BASEMAPS } from '../models/basemapMode';
 import { MyCityDto } from '../models/myCityDto';
 
 export class MyCitiesStoreMock 
@@ -10,9 +10,6 @@ export class MyCitiesStoreMock
     private readonly _filteredCities = new BehaviorSubject<MyCityDto[] | null>(null);
     filteredCities$ = this._filteredCities.asObservable();
 
-    private readonly _basemapMode = new BehaviorSubject<BasemapMode>('standard' as BasemapMode);
-    basemapMode$ = this._basemapMode.asObservable();
-
     ensureLoaded(): Observable<void> 
     {
         return of(void 0);
@@ -20,15 +17,20 @@ export class MyCitiesStoreMock
 
     setDecadeFilter = jasmine.createSpy('setDecadeFilter');
     setStayDurationFilter = jasmine.createSpy('setStayDurationFilter');
-    setBasemapMode = jasmine.createSpy('setBasemapMode');
+    private selections: BasemapSelections = {...DEFAULT_BASEMAPS};
+    getBasemapMode<E extends keyof BasemapSelections>(engine: E): BasemapSelections[E]
+    {
+        return this.selections[engine];
+    }
+    setBasemapMode = jasmine.createSpy('setBasemapMode').and.callFake(
+        <E extends keyof BasemapSelections>(engine: E, mode: BasemapSelections[E]) =>
+        {
+            this.selections = {...this.selections, [engine]: mode};
+        }
+    );
 
-    emitCities(cities: MyCityDto[] | null): void 
+    emitCities(cities: MyCityDto[] | null): void
     {
         this._filteredCities.next(cities);
-    }
-
-    emitBasemap(mode: BasemapMode): void 
-    {
-        this._basemapMode.next(mode);
     }
 }

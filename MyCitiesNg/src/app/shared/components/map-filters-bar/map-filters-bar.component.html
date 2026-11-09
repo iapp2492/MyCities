@@ -1,19 +1,19 @@
-<!-- Filters bar: decade, stay duration, basemap -->
+<!-- Filters bar: basemap, decade, location, stay duration, and engine -->
 <div class="filters">
-    
+
     <!-- Basemaps (hidden if none provided) -->
-     @if (basemaps.length > 0)
-     {
-         <select (change)="onBasemapSelectChange($event.target)" [value]="selectedBasemap ?? basemaps[0].value">
+    @if (basemaps.length > 0)
+    {
+        <select (change)="onBasemapSelectChange($event.target)" [ngModel]="selectedBasemap ?? basemaps[0].value">
             @for (bm of basemaps; track bm.value) 
             {
                 <option [value]="bm.value">{{ bm.label }}</option>
             }
         </select>
-     }
+    }
 
     <!-- Decades (multi-decades are possible) -->
-   <select
+    <select
         [ngModel]="selectedDecade"
         (ngModelChange)="decadeChange.emit($event)">
         <option [ngValue]="null">All Decades</option>
@@ -54,11 +54,11 @@
         }
     </select>
 
-     <mat-button-toggle-group
+    <mat-button-toggle-group
         [value]="currentEngine"
         (change)="onEngineChange($event.value)"
         class="engine-segment">
-        
+
         <mat-button-toggle value="leaflet">
             Leaflet
         </mat-button-toggle>
@@ -72,5 +72,5 @@
         </mat-button-toggle>
 
     </mat-button-toggle-group>
-    
+
 </div>

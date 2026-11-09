@@ -3,20 +3,18 @@ import { BehaviorSubject, Observable, of, throwError } from 'rxjs';
 import { MapboxMapComponent } from './mapbox-map.component';
 import { MyCitiesStoreService } from '../../core/services/my-cities-store.service';
 import type { MyCityDto } from '../../../models/myCityDto';
-import type { BasemapMode } from '../../../models/basemapMode';
+import { BasemapSelections, DEFAULT_BASEMAPS } from '../../../models/basemapMode';
 import { MAPBOX_FACTORY } from '../../core/map/mapbox.factory';
 import type { MapboxFactory } from '../../core/map/mapbox.factory';
 import { MapHintService } from '../../core/services/map-hint.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { CityPopupHtmlService } from '../../core/services/city-popup-html.service';
 import { provideRouter } from '@angular/router';import { ActivatedRoute, convertToParamMap } from '@angular/router';
-import { MatDialog } from '@angular/material/dialog';
 import { DebugLoggerService } from '../../core/services/debug-logger.service';
 import { PhotoViewerLauncherService } from '../../photo-viewer/photo-viewer-launcher.service';
 
 type LoadHandler = () => void;
 
-let dialogMock: { open: jasmine.Spy };
 
 interface MapboxMapLike
 {
@@ -108,7 +106,18 @@ class MyCitiesStoreMock
 
     setDecadeFilter = jasmine.createSpy('setDecadeFilter');
     setStayDurationFilter = jasmine.createSpy('setStayDurationFilter');
-    setBasemapMode = jasmine.createSpy('setBasemapMode');
+    private selections: BasemapSelections = {...DEFAULT_BASEMAPS};
+    getBasemapMode<E extends keyof BasemapSelections>(engine: E): BasemapSelections[E]
+    {
+        return this.selections[engine];
+    }
+    setBasemapMode = jasmine.createSpy('setBasemapMode').and.callFake(
+        <E extends keyof BasemapSelections>(engine: E, mode: BasemapSelections[E]) =>
+        {
+            this.selections = {...this.selections, [engine]: mode};
+
+        }
+    );
     hasPhotos = jasmine.createSpy('hasPhotos').and.returnValue(false);
 
     emitCities(cities: MyCityDto[] | null): void
@@ -271,11 +280,6 @@ describe('MapboxMapComponent', () =>
             return 1;
         });
 
-        dialogMock =
-        {
-            open: jasmine.createSpy('open')
-        };
-
         debugLoggerMock =
         {
             log: jasmine.createSpy('log'),
@@ -312,7 +316,7 @@ describe('MapboxMapComponent', () =>
 
                 { provide: MapHintService, useClass: MapHintServiceMock },
                 { provide: MatSnackBar, useValue: snackBarMock },
-                { provide: MatDialog, useValue: dialogMock },
+                { provide: PhotoViewerLauncherService, useValue: photoViewerLauncher },
                 { provide: CityPopupHtmlService, useClass: CityPopupHtmlServiceMock },
                 { provide: DebugLoggerService, useValue: debugLoggerMock },
             ]
@@ -409,7 +413,7 @@ describe('MapboxMapComponent', () =>
 
         component.onBasemapChange('navNight');
 
-        expect(myCitiesStoreMock.setBasemapMode).toHaveBeenCalledWith('navNight' as unknown as BasemapMode);
+        expect(myCitiesStoreMock.setBasemapMode).toHaveBeenCalledWith('mapbox', 'navNight');
         expect(factory.mapResult.map.setStyle).not.toHaveBeenCalled();
         expect(factory.mapResult.map.once).not.toHaveBeenCalled();
     });
@@ -486,7 +490,7 @@ describe('MapboxMapComponent', () =>
         component.onBasemapChange('navNight');
 
         // Assert
-        expect(myCitiesStoreMock.setBasemapMode).toHaveBeenCalledWith('navNight' as unknown as BasemapMode);
+        expect(myCitiesStoreMock.setBasemapMode).toHaveBeenCalledWith('mapbox', 'navNight');
 
         // Early return: should NOT setStyle / once
         expect(factory.mapResult.map.setStyle).not.toHaveBeenCalled();
@@ -635,13 +639,12 @@ describe('MapboxMapComponent', () =>
         expect(factory.mapResult.map.resize).toHaveBeenCalled();
     });
 
-    it('initMapOnce should use standard style when selectedBasemap is undefined', () =>
+    it('initMapOnce should restore the saved Mapbox basemap', () =>
     {
         // Arrange: capture the options passed into createMap
         const createMapSpy = spyOn(factory, 'createMap').and.callThrough();
 
-        // Make selectedBasemap undefined
-        (component as unknown as { selectedBasemap?: BasemapMode }).selectedBasemap = undefined;
+        myCitiesStoreMock.setBasemapMode('mapbox', 'outdoors');
 
         // Act
         fixture.detectChanges();
@@ -652,10 +655,10 @@ describe('MapboxMapComponent', () =>
         const options = createMapSpy.calls.mostRecent().args[0] as mapboxgl.MapOptions;
 
         const basemapStyles = (component as unknown as { basemapStyles: Record<string, string> }).basemapStyles;
-        expect(options.style).toBe(basemapStyles['standard']);
+        expect(options.style).toBe(basemapStyles['outdoors']);
 
         const currentStyle = (component as unknown as { currentStyle: string }).currentStyle;
-        expect(currentStyle).toBe(basemapStyles['standard']);
+        expect(currentStyle).toBe(basemapStyles['outdoors']);
     });
 
     it('createMarkerElement should update opacity on mouseenter and mouseleave', () =>
@@ -798,7 +801,7 @@ describe('MapboxMapComponent', () =>
 
         expect(clickEvent.preventDefault).toHaveBeenCalled();
         expect(clickEvent.stopPropagation).toHaveBeenCalled();
-        expect(dialogMock.open).toHaveBeenCalled();
+        expect(photoViewerLauncher.open).toHaveBeenCalledWith(123);
     });
 
     it('initMapOnce should return early when createMap returns undefined', () =>
@@ -898,7 +901,7 @@ describe('MapboxMapComponent', () =>
         expect(clickEvent.preventDefault).toHaveBeenCalled();
         expect(clickEvent.stopPropagation).toHaveBeenCalled();
         expect(debugLoggerMock.warn).toHaveBeenCalledWith('Invalid photo key in popup:', 'abc');
-        expect(dialogMock.open).not.toHaveBeenCalled();
+        expect(photoViewerLauncher.open).not.toHaveBeenCalled();
     });
 
 });

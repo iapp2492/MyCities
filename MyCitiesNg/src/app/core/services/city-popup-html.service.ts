@@ -17,7 +17,7 @@ export class CityPopupHtmlService
 
         return `
             <div style="font-size: 13px; line-height: 1.35;">
-                <div style="font-weight: 700; margin-bottom: 6px;">
+                <div style="font-size: 18px; font-weight: 700; margin-bottom: 6px;">
                     ${this.escapeHtml(city.city)}
                 </div>
 

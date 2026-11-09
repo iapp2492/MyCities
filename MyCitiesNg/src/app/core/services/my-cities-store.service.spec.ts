@@ -6,7 +6,7 @@ import { take, tap } from 'rxjs/operators';
 import { MyCitiesStoreService } from './my-cities-store.service';
 import { MyCitiesApiService } from '../services/my-cities-api.service';
 import { MyCityDto } from '../../../models/myCityDto';
-import { BasemapMode } from '../../../models/basemapMode';
+import { BasemapSelections } from '../../../models/basemapMode';
 import { DebugLoggerService } from './debug-logger.service';
 import { LocationFilterOption } from '../../../models/LocationFilterOption';
 
@@ -89,7 +89,7 @@ describe('MyCitiesStoreService', () =>
         const decades = await firstValueFrom(service.decades$.pipe(take(1)));
         const stayFilter = await firstValueFrom(service.stayDurationFilter$.pipe(take(1)));
         const decadeFilter = await firstValueFrom(service.decadeFilter$.pipe(take(1)));
-        const basemap = await firstValueFrom(service.basemapMode$.pipe(take(1)));
+        const basemap = service.getBasemapMode('leaflet');
 
         expect(cities).toEqual([]);
         expect(loading).toBeFalse();
@@ -98,7 +98,9 @@ describe('MyCitiesStoreService', () =>
         expect(decades).toEqual([]);
         expect(stayFilter).toBeNull();
         expect(decadeFilter).toBeNull();
-        expect(basemap).toBe('standard' as BasemapMode);
+        expect(basemap).toBe('standard');
+        expect(service.getBasemapMode('mapbox')).toBe('standard');
+        expect(service.getBasemapMode('google')).toBe('roadmap');
     });
 
     it('ensureLoaded calls API once, sets loading true then false, and populates cities + filter lists (filtering invalid coords)', (done) =>
@@ -308,25 +310,38 @@ describe('MyCitiesStoreService', () =>
         expect(v3).toBeNull();
     });
 
-    it('clearFilters sets both filters to null', async () =>
+    it('clearFilters sets all three filters to null', async () =>
     {
         service.setStayDurationFilter('1 mo');
         service.setDecadeFilter('1990s');
+        service.setLocationFilter('country:1');
 
         service.clearFilters();
 
         const stay = await firstValueFrom(service.stayDurationFilter$.pipe(take(1)));
         const decade = await firstValueFrom(service.decadeFilter$.pipe(take(1)));
+        const location = await firstValueFrom(service.locationFilter$.pipe(take(1)));
 
         expect(stay).toBeNull();
         expect(decade).toBeNull();
+        expect(location).toBeNull();
     });
 
-    it('setBasemapMode emits new basemap mode', async () =>
+    it('remembers each engine basemap independently', () =>
     {
-        service.setBasemapMode('satellite' as BasemapMode);
-        const mode = await firstValueFrom(service.basemapMode$.pipe(take(1)));
-        expect(mode).toBe('satellite' as BasemapMode);
+        service.setBasemapMode('leaflet', 'humanitarian');
+        service.setBasemapMode('mapbox', 'navNight');
+        service.setBasemapMode('google', 'hybrid');
+
+        expect(service.getBasemapMode('leaflet')).toBe('humanitarian');
+        expect(service.getBasemapMode('mapbox')).toBe('navNight');
+        expect(service.getBasemapMode('google')).toBe('hybrid');
+    });
+
+    it('rejects a basemap belonging to another engine at runtime', () =>
+    {
+        service.setBasemapMode('leaflet', 'hybrid' as BasemapSelections['leaflet']);
+        expect(service.getBasemapMode('leaflet')).toBe('standard');
     });
 
     it('filteredCities$ filters by stayDuration and decade (including multi-valued decades)', async () =>

@@ -3,14 +3,14 @@ import { BehaviorSubject, Observable, of, throwError } from 'rxjs';
 import { LeafletMapComponent } from './leaflet-map.component';
 import { MyCitiesStoreService } from '../../core/services/my-cities-store.service';
 import type { MyCityDto } from '../../../models/myCityDto';
-import type { BasemapMode } from '../../../models/basemapMode';
+import { BasemapMode, BasemapSelections, DEFAULT_BASEMAPS } from '../../../models/basemapMode';
 
 import * as L from 'leaflet';
 import { MapHintService } from '../../core/services/map-hint.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { CityPopupHtmlService } from '../../core/services/city-popup-html.service';
 import { DebugLoggerService } from '../../core/services/debug-logger.service';
-import { MatDialog } from '@angular/material/dialog';
+import { PhotoViewerLauncherService } from '../../photo-viewer/photo-viewer-launcher.service';
 
 type ZoomHandler = (zoom?: number) => void;
 
@@ -68,9 +68,6 @@ class MyCitiesStoreMock
     private readonly _filteredCities = new BehaviorSubject<MyCityDto[]>([]);
     filteredCities$ = this._filteredCities.asObservable();
 
-    private readonly _basemapMode = new BehaviorSubject<BasemapMode>('standard' as BasemapMode);
-    basemapMode$ = this._basemapMode.asObservable();
-
     ensureLoaded(): Observable<void>
     {
         return of(void 0);
@@ -78,17 +75,22 @@ class MyCitiesStoreMock
 
     setDecadeFilter = jasmine.createSpy('setDecadeFilter');
     setStayDurationFilter = jasmine.createSpy('setStayDurationFilter');
-    setBasemapMode = jasmine.createSpy('setBasemapMode');
+    private selections: BasemapSelections = {...DEFAULT_BASEMAPS};
+    getBasemapMode<E extends keyof BasemapSelections>(engine: E): BasemapSelections[E]
+    {
+        return this.selections[engine];
+    }
+    setBasemapMode = jasmine.createSpy('setBasemapMode').and.callFake(
+        <E extends keyof BasemapSelections>(engine: E, mode: BasemapSelections[E]) =>
+        {
+            this.selections = {...this.selections, [engine]: mode};
+        }
+    );
     hasPhotos = jasmine.createSpy('hasPhotos').and.returnValue(false);
 
     emitCities(cities: MyCityDto[]): void
     {
         this._filteredCities.next(cities);
-    }
-
-    emitBasemap(mode: BasemapMode): void
-    {
-        this._basemapMode.next(mode);
     }
 }
 
@@ -255,7 +257,7 @@ describe('LeafletMapComponent', () =>
                     { provide: MatSnackBar, useValue: snackBarMock },
                     { provide: DebugLoggerService, useValue: debugLoggerMock },
                     { provide: CityPopupHtmlService, useValue: popupHtmlMock }, 
-                    { provide: MatDialog, useValue: dialogMock },
+                    { provide: PhotoViewerLauncherService, useValue: dialogMock },
                 ],                   
         })
         .compileComponents();
@@ -301,7 +303,7 @@ describe('LeafletMapComponent', () =>
         component.onBasemapChange('esristreet');
 
         expect(component.selectedBasemap).toBe('esristreet');
-        expect(myCitiesStoreMock.setBasemapMode).toHaveBeenCalledWith('esristreet');
+        expect(myCitiesStoreMock.setBasemapMode).toHaveBeenCalledWith('leaflet', 'esristreet');
     });
 
     it('ngAfterViewInit should create the map, register zoom handler, add layers, and wire data', () =>
@@ -313,7 +315,11 @@ describe('LeafletMapComponent', () =>
         expect(L.map).toHaveBeenCalled();
         expect((fakeMap.on as jasmine.Spy)).toHaveBeenCalledWith('zoomend', jasmine.any(Function));
 
-        expect(L.tileLayer).toHaveBeenCalled();
+        expect(component.selectedBasemap).toBe('standard');
+        expect(L.tileLayer).toHaveBeenCalledWith(
+            'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+            jasmine.any(Object)
+        );
         expect((fakeTileLayer.addTo as jasmine.Spy)).toHaveBeenCalledWith(fakeMap);
 
         expect((fakeLayerGroup.addTo as jasmine.Spy)).toHaveBeenCalledWith(fakeMap);
@@ -351,11 +357,23 @@ describe('LeafletMapComponent', () =>
         expect((fakeMap.fitBounds as jasmine.Spy)).toHaveBeenCalled();
     });
 
-    it('should apply basemap when basemapMode$ emits', () =>
+    it('should restore the saved Leaflet basemap in the map and dropdown', () =>
+    {
+        myCitiesStoreMock.setBasemapMode('leaflet', 'humanitarian');
+        fixture.detectChanges();
+
+        expect(component.selectedBasemap).toBe('humanitarian');
+        expect(L.tileLayer).toHaveBeenCalledWith(
+            'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',
+            jasmine.any(Object)
+        );
+    });
+
+    it('should save and apply the basemap when the selection changes', () =>
     {
         fixture.detectChanges();
 
-        myCitiesStoreMock.emitBasemap('voyager' as BasemapMode);
+        component.onBasemapChange('humanitarian');
 
         expect(L.tileLayer).toHaveBeenCalled();
         expect((fakeTileLayer.addTo as jasmine.Spy)).toHaveBeenCalledWith(fakeMap);
@@ -793,7 +811,7 @@ describe('LeafletMapComponent', () =>
 
     it('renderMarkers popupopen should return early when popup element or photo link is missing, and open dialog for valid photo key', () =>
     {
-        const dialog = TestBed.inject(MatDialog) as unknown as
+        const dialog = TestBed.inject(PhotoViewerLauncherService) as unknown as
         {
             open: jasmine.Spy;
         };
@@ -893,12 +911,12 @@ describe('LeafletMapComponent', () =>
 
         expect(preventDefault).toHaveBeenCalled();
         expect(stopPropagation).toHaveBeenCalled();
-        expect(dialog.open).toHaveBeenCalled();
+        expect(dialog.open).toHaveBeenCalledWith(123);
     });
 
     it('renderMarkers popupopen should warn and return when popup link has invalid photo key', () =>
     {
-        const dialog = TestBed.inject(MatDialog) as unknown as
+        const dialog = TestBed.inject(PhotoViewerLauncherService) as unknown as
         {
             open: jasmine.Spy;
         };

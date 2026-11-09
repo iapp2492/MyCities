@@ -1,14 +1,14 @@
-import { NgClass } from "@angular/common";
-import { Component, Input } from "@angular/core";
-import { MatButtonModule } from "@angular/material/button";
+import { NgClass } from '@angular/common';
+import { Component, Input } from '@angular/core';
+import { MatButtonModule } from '@angular/material/button';
 
 @Component({
     selector: 'app-ktr-button',
     template: `
     <button
       mat-raised-button
-      color="primary"  
-      [ngClass]="buttonClass"  
+      color="primary"
+      [ngClass]="buttonClass"
       [attr.type]="type"
       [disabled]="disabled">
       <ng-content></ng-content>
@@ -18,7 +18,7 @@ import { MatButtonModule } from "@angular/material/button";
     standalone: true,
     imports: [MatButtonModule, NgClass],
 })
-export class KtrButtonComponent 
+export class KtrButtonComponent
 {
     // default to "button" so it won't submit forms accidentally
     @Input() type: 'button' | 'submit' | 'reset' = 'button';
